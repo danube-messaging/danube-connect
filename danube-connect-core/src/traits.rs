@@ -1,0 +1,252 @@
+//! Connector trait definitions.
+//!
+//! This module defines the core traits that connectors must implement:
+//! - `SinkConnector`: For consuming from Danube and writing to external systems
+//! - `SourceConnector`: For reading from external systems and producing to Danube
+
+use crate::{ConnectorConfig, ConnectorResult, SinkRecord, SourceRecord};
+use async_trait::async_trait;
+
+/// Checkpoint/offset information for source connectors
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Offset {
+    /// The partition or source identifier
+    pub partition: String,
+    /// The offset value (interpretation depends on source)
+    pub value: u64,
+    /// Optional metadata
+    pub metadata: Option<String>,
+}
+
+impl Offset {
+    /// Create a new offset
+    pub fn new(partition: impl Into<String>, value: u64) -> Self {
+        Self {
+            partition: partition.into(),
+            value,
+            metadata: None,
+        }
+    }
+
+    /// Create an offset with metadata
+    pub fn with_metadata(
+        partition: impl Into<String>,
+        value: u64,
+        metadata: impl Into<String>,
+    ) -> Self {
+        Self {
+            partition: partition.into(),
+            value,
+            metadata: Some(metadata.into()),
+        }
+    }
+}
+
+/// Trait for implementing Sink Connectors (Danube → External System)
+///
+/// Sink connectors consume messages from Danube topics and write them to external systems.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use danube_connect_core::{SinkConnector, SinkRecord, ConnectorConfig, ConnectorResult};
+/// use async_trait::async_trait;
+///
+/// pub struct HttpSink {
+///     target_url: String,
+/// }
+///
+/// #[async_trait]
+/// impl SinkConnector for HttpSink {
+///     async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> {
+///         self.target_url = config.get_string("TARGET_URL")?;
+///         Ok(())
+///     }
+///     
+///     async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
+///         // Send HTTP POST request
+///         Ok(())
+///     }
+/// }
+/// ```
+#[async_trait]
+pub trait SinkConnector: Send + Sync {
+    /// Initialize the connector with configuration
+    ///
+    /// This method is called once at startup before any message processing begins.
+    /// Use it to:
+    /// - Load connector-specific configuration
+    /// - Establish connections to external systems
+    /// - Validate credentials and connectivity
+    /// - Initialize internal state
+    ///
+    /// # Errors
+    ///
+    /// Return `ConnectorError::Configuration` for configuration issues
+    /// Return `ConnectorError::Fatal` for initialization failures
+    async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()>;
+
+    /// Process a single message from Danube
+    ///
+    /// This method is called for each message received from the Danube topic.
+    ///
+    /// # Return Value
+    ///
+    /// - `Ok(())`: Message processed successfully, will be acknowledged
+    /// - `Err(ConnectorError::Retryable)`: Transient failure, message will be retried
+    /// - `Err(ConnectorError::Fatal)`: Permanent failure, connector will stop
+    /// - `Err(ConnectorError::InvalidData)`: Bad message, will be skipped or sent to DLQ
+    ///
+    /// # Errors
+    ///
+    /// Return appropriate error type based on the failure scenario
+    async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()>;
+
+    /// Optional: Process a batch of messages for better throughput
+    ///
+    /// Override this method to implement batch processing for better performance.
+    /// The default implementation calls `process()` for each record sequentially.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use danube_connect_core::{SinkConnector, SinkRecord, ConnectorConfig, ConnectorResult};
+    /// # use async_trait::async_trait;
+    /// # struct MyConnector;
+    /// # #[async_trait]
+    /// # impl SinkConnector for MyConnector {
+    /// #     async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> { Ok(()) }
+    /// #     async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> { Ok(()) }
+    /// async fn process_batch(&mut self, records: Vec<SinkRecord>) -> ConnectorResult<()> {
+    ///     // Bulk insert all records in one operation
+    ///     // self.database.bulk_insert(&records).await?;
+    ///     Ok(())
+    /// }
+    /// # }
+    /// ```
+    async fn process_batch(&mut self, records: Vec<SinkRecord>) -> ConnectorResult<()> {
+        for record in records {
+            self.process(record).await?;
+        }
+        Ok(())
+    }
+
+    /// Optional: Called before shutdown for cleanup
+    ///
+    /// Use this to:
+    /// - Flush any pending writes
+    /// - Close connections gracefully
+    /// - Save checkpoints
+    /// - Clean up resources
+    async fn shutdown(&mut self) -> ConnectorResult<()> {
+        Ok(())
+    }
+
+    /// Optional: Health check implementation
+    ///
+    /// This method is called periodically to verify the connector is healthy.
+    /// Check connectivity to external systems and return an error if unhealthy.
+    async fn health_check(&self) -> ConnectorResult<()> {
+        Ok(())
+    }
+}
+
+/// Trait for implementing Source Connectors (External System → Danube)
+///
+/// Source connectors read data from external systems and publish to Danube topics.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use danube_connect_core::{SourceConnector, SourceRecord, ConnectorConfig, ConnectorResult, Offset};
+/// use async_trait::async_trait;
+///
+/// pub struct FileSource {
+///     file_path: String,
+///     position: u64,
+/// }
+///
+/// #[async_trait]
+/// impl SourceConnector for FileSource {
+///     async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> {
+///         self.file_path = config.get_string("FILE_PATH")?;
+///         Ok(())
+///     }
+///     
+///     async fn poll(&mut self) -> ConnectorResult<Vec<SourceRecord>> {
+///         // Read new lines from file
+///         Ok(vec![])
+///     }
+///     
+///     async fn commit(&mut self, offsets: Vec<Offset>) -> ConnectorResult<()> {
+///         // Save file position
+///         Ok(())
+///     }
+/// }
+/// ```
+#[async_trait]
+pub trait SourceConnector: Send + Sync {
+    /// Initialize the connector with configuration
+    ///
+    /// This method is called once at startup. Use it to:
+    /// - Load configuration
+    /// - Establish connections
+    /// - Load last checkpoint/offset
+    /// - Initialize internal state
+    async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()>;
+
+    /// Poll for new data from the external system
+    ///
+    /// This method is called repeatedly in a loop. Return:
+    /// - Non-empty vector of records when data is available
+    /// - Empty vector when no data is available (non-blocking)
+    ///
+    /// The runtime will handle publishing records to Danube and calling `commit()`
+    /// after successful acknowledgment.
+    ///
+    /// # Errors
+    ///
+    /// Return `ConnectorError::Retryable` for transient failures
+    /// Return `ConnectorError::Fatal` to stop the connector
+    async fn poll(&mut self) -> ConnectorResult<Vec<SourceRecord>>;
+
+    /// Optional: Commit offset/checkpoint after successful publish
+    ///
+    /// This method is called by the runtime after messages are successfully
+    /// published and acknowledged by Danube. Use it to save checkpoints or
+    /// acknowledge messages in the source system.
+    ///
+    /// # Arguments
+    ///
+    /// * `offsets` - List of offsets that were successfully published
+    async fn commit(&mut self, offsets: Vec<Offset>) -> ConnectorResult<()> {
+        let _ = offsets; // Suppress unused warning
+        Ok(())
+    }
+
+    /// Optional: Called before shutdown
+    async fn shutdown(&mut self) -> ConnectorResult<()> {
+        Ok(())
+    }
+
+    /// Optional: Health check implementation
+    async fn health_check(&self) -> ConnectorResult<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_offset_creation() {
+        let offset = Offset::new("partition-0", 42);
+        assert_eq!(offset.partition, "partition-0");
+        assert_eq!(offset.value, 42);
+        assert!(offset.metadata.is_none());
+
+        let offset_with_meta = Offset::with_metadata("partition-1", 100, "some-metadata");
+        assert_eq!(offset_with_meta.metadata, Some("some-metadata".to_string()));
+    }
+}

@@ -1,0 +1,44 @@
+[package]
+name = "danube-connect-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core SDK for building Danube connectors"
+keywords = ["danube", "messaging", "connector", "integration"]
+categories = ["network-programming", "asynchronous"]
+
+[dependencies]
+# Workspace dependencies
+futures.workspace = true
+futures-util.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-stream.workspace = true
+tokio-util.workspace = true
+async-trait.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+thiserror.workspace = true
+anyhow.workspace = true
+metrics.workspace = true
+
+# Danube dependencies
+danube-client = { workspace = true }
+danube-core = { workspace = true }
+
+# Additional dependencies
+config = "0.14"
+toml = "0.8"
+rand.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio-test = "0.4"
+
+[features]
+default = []
+# Future: Add features for optional functionality
