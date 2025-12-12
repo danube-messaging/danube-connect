@@ -167,17 +167,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "danube-connect-common"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
 name = "danube-connect-core"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "async-trait",
  "danube-client",

@@ -51,6 +51,7 @@ mod metrics;
 mod retry;
 mod runtime;
 mod traits;
+pub mod utils;
 
 // Re-export public API
 pub use config::{ConnectorConfig, SubscriptionType};
@@ -60,6 +61,7 @@ pub use metrics::ConnectorMetrics;
 pub use retry::{RetryConfig, RetryStrategy};
 pub use runtime::{SinkRuntime, SourceRuntime};
 pub use traits::{Offset, SinkConnector, SourceConnector};
+pub use utils::{Batcher, HealthChecker, HealthStatus};
 
 // Re-export commonly used types from danube-client
 pub use danube_client::SubType;

@@ -71,8 +71,35 @@ impl SinkConnector for SimpleSinkConnector {
 
 #[tokio::main]
 async fn main() -> ConnectorResult<()> {
-    // Load configuration from environment
-    let config = ConnectorConfig::from_env()?;
+    // Load configuration from environment, with sensible defaults for testing
+    let config = ConnectorConfig::from_env().unwrap_or_else(|_| {
+        println!("Using default configuration for testing");
+        println!("To use custom settings, set environment variables:");
+        println!("  DANUBE_SERVICE_URL (default: http://localhost:6650)");
+        println!("  CONNECTOR_NAME (default: simple-sink)");
+        println!("  DANUBE_TOPIC (default: /default/test)");
+        println!("  SUBSCRIPTION_NAME (default: simple-sink-sub)");
+        println!();
+
+        ConnectorConfig {
+            danube_service_url: "http://localhost:6650".to_string(),
+            connector_name: "simple-sink".to_string(),
+            source_topic: Some("/default/test".to_string()),
+            subscription_name: Some("simple-sink-sub".to_string()),
+            subscription_type: None,
+            destination_topic: None,
+            reliable_dispatch: true,
+            max_retries: 3,
+            retry_backoff_ms: 1000,
+            max_backoff_ms: 30000,
+            batch_size: 1000,
+            batch_timeout_ms: 5000,
+            poll_interval_ms: 100,
+            metrics_port: 9090,
+            log_level: "info".to_string(),
+            connector_config: Default::default(),
+        }
+    });
 
     // Create connector instance
     let connector = SimpleSinkConnector::new();

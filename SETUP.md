@@ -19,29 +19,26 @@ danube-connect/
 │   ├── connector-message-patterns.md   # Message handling patterns
 │   └── connector-rpc-integration.md    # RPC communication details
 │
-├── danube-connect-core/                # ✅ COMPLETE - Core SDK
-│   ├── Cargo.toml
-│   ├── README.md
-│   ├── src/
-│   │   ├── lib.rs                     # Public API exports
-│   │   ├── error.rs                   # Error types (ConnectorError)
-│   │   ├── traits.rs                  # SinkConnector, SourceConnector traits
-│   │   ├── message.rs                 # SinkRecord, SourceRecord + utilities
-│   │   ├── config.rs                  # ConnectorConfig + SubscriptionType
-│   │   ├── retry.rs                   # RetryStrategy with exponential backoff
-│   │   ├── metrics.rs                 # Prometheus metrics integration
-│   │   └── runtime.rs                 # SinkRuntime, SourceRuntime
-│   └── examples/
-│       ├── simple_sink.rs             # Example sink connector
-│       └── simple_source.rs           # Example source connector
-│
-└── danube-connect-common/              # ✅ COMPLETE - Shared utilities
+└── danube-connect-core/                # ✅ COMPLETE - Core SDK
     ├── Cargo.toml
+    ├── README.md
     ├── src/
-    │   ├── lib.rs
-    │   ├── serialization.rs           # JSON, string helpers
-    │   ├── batching.rs                # Batcher utility
-    │   └── health.rs                  # HealthChecker utility
+    │   ├── lib.rs                     # Public API exports
+    │   ├── error.rs                   # Error types (ConnectorError)
+    │   ├── traits.rs                  # SinkConnector, SourceConnector traits
+    │   ├── message.rs                 # SinkRecord, SourceRecord + utilities
+    │   ├── config.rs                  # ConnectorConfig + SubscriptionType
+    │   ├── retry.rs                   # RetryStrategy with exponential backoff
+    │   ├── metrics.rs                 # Prometheus metrics integration
+    │   ├── runtime.rs                 # SinkRuntime, SourceRuntime
+    │   └── utils/                     # Utility modules
+    │       ├── mod.rs
+    │       ├── serialization.rs       # JSON, string helpers
+    │       ├── batching.rs            # Batcher utility
+    │       └── health.rs              # HealthChecker utility
+    └── examples/
+        ├── simple_sink.rs             # Example sink connector
+        └── simple_source.rs           # Example source connector
 ```
 
 ## 📦 Dependencies Used
@@ -122,17 +119,17 @@ pub trait SourceConnector: Send + Sync {
 - Graceful shutdown handling
 - Signal handling (SIGTERM, SIGINT)
 
-### danube-connect-common
+### danube-connect-core Utilities
 
-#### 1. **Serialization**
+#### 1. **Serialization** (`utils::serialization`)
 - JSON helpers: `json::to_bytes()`, `json::from_bytes()`
 - String conversion: `string::from_bytes()`
 
-#### 2. **Batching**
+#### 2. **Batching** (`utils::batching`)
 - `Batcher<T>` - Generic batching utility
 - Size and timeout-based flushing
 
-#### 3. **Health Checking**
+#### 3. **Health Checking** (`utils::health`)
 - `HealthChecker` - Track consecutive failures
 - Health status: Healthy, Degraded, Unhealthy
 
@@ -211,7 +208,7 @@ Complete documentation is available in the `info/` directory:
 You now have a fully functional Danube Connect framework with:
 
 ✅ **Complete core SDK** (`danube-connect-core`) with all essential features  
-✅ **Shared utilities** (`danube-connect-common`) for common operations  
+✅ **Built-in utilities** (batching, health checking, serialization)  
 ✅ **Comprehensive documentation** covering architecture, development, and patterns  
 ✅ **Example connectors** showing sink and source implementations  
 ✅ **Production-ready features:** retry logic, metrics, health checks, graceful shutdown  
