@@ -88,49 +88,6 @@ cargo new --bin sink-mydb
 | File/Directory | 🚧 Planned | File system monitoring |
 | Kafka | 🚧 Planned | Kafka topic mirroring |
 
-## Repository Structure
-
-```text
-danube-connect/
-├── Cargo.toml                      # Workspace configuration
-├── README.md                       # This file
-├── LICENSE
-│
-├── info/                           # Comprehensive documentation
-│   ├── CONNECTORS_README.md        # Documentation index
-│   ├── connectors.md               # Architecture overview
-│   ├── connector-core-architecture.md
-│   ├── connector-development-guide.md
-│   ├── connector-message-patterns.md
-│   └── connector-rpc-integration.md
-│
-├── danube-connect-core/            # Shared connector SDK
-│   ├── Cargo.toml
-│   ├── src/
-│   │   ├── lib.rs
-│   │   ├── traits.rs              # SinkConnector, SourceConnector
-│   │   ├── runtime.rs             # Lifecycle management
-│   │   ├── client_wrapper.rs     # Danube client integration
-│   │   ├── message.rs             # Message transformation
-│   │   ├── config.rs              # Configuration management
-│   │   ├── error.rs               # Error types
-│   │   ├── retry.rs               # Retry strategies
-│   │   └── metrics.rs             # Observability
-│   └── examples/
-│
-├── danube-connect-common/          # Shared utilities
-│   ├── Cargo.toml
-│   └── src/
-│       ├── serialization.rs       # JSON, Avro helpers
-│       ├── batching.rs            # Batching utilities
-│       └── health.rs              # Health checks
-│
-└── connectors/                     # Connector implementations
-    ├── sink-http/
-    ├── sink-clickhouse/
-    ├── source-postgres/
-    └── ...
-```
 
 ## Documentation
 
@@ -183,6 +140,3 @@ Apache License 2.0 - See [LICENSE](LICENSE) for details.
 - **Danube Docs**: [Official Documentation](https://danube-docs.dev-state.com)
 - **Main Project**: [Danube Messaging](https://github.com/danube-messaging/danube)
 
----
-
-Built with ❤️ by the Danube community
