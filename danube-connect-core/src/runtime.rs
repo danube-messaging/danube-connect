@@ -417,30 +417,3 @@ impl<C: SourceConnector> SourceRuntime<C> {
         Ok(offsets)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::traits::SinkConnector;
-    use async_trait::async_trait;
-
-    // Mock connector for testing
-    struct MockSinkConnector;
-
-    #[async_trait]
-    impl SinkConnector for MockSinkConnector {
-        async fn initialize(&mut self, _config: ConnectorConfig) -> ConnectorResult<()> {
-            Ok(())
-        }
-
-        async fn process(&mut self, _record: SinkRecord) -> ConnectorResult<()> {
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn test_runtime_creation() {
-        // This test just verifies the types compile
-        // Actual runtime tests would require a running Danube broker
-    }
-}

@@ -39,9 +39,9 @@ anyhow = "1.0"
 rustls = "0.23.34"
 tempfile = "3.23"
 
-# Danube dependencies (from main repo)
-danube-client = { git = "https://github.com/danube-messaging/danube", branch = "main" }
-danube-core = { git = "https://github.com/danube-messaging/danube", branch = "main" }
+# Danube dependencies (from crates.io)
+danube-client = "0.5.2"
+danube-core = "0.5.2"
 
 [profile.release]
 opt-level = 3

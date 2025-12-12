@@ -16,7 +16,4 @@ serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
 
-# Additional dependencies
-bytes = "1.5"
-
 [dev-dependencies]

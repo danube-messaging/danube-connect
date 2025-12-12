@@ -171,11 +171,13 @@ impl ConnectorMetrics {
 }
 
 /// Timer for tracking processing duration
+#[allow(dead_code)]
 pub struct ProcessingTimer {
     start: std::time::Instant,
     metrics: ConnectorMetrics,
 }
 
+#[allow(dead_code)]
 impl ProcessingTimer {
     /// Create a new timer
     pub fn new(metrics: ConnectorMetrics) -> Self {
