@@ -123,13 +123,6 @@ We welcome contributions! Here's how you can help:
 
 Please read our [Development Guide](./info/connector-development-guide.md) before contributing.
 
-## Roadmap
-
-- **Phase 1** (Q1 2024): Core framework and initial connectors
-- **Phase 2** (Q2 2024): Additional database and HTTP connectors
-- **Phase 3** (Q3 2024): Bridge connectors (Kafka, RabbitMQ)
-- **Phase 4** (Q4 2024): Enterprise features (schema registry, exactly-once)
-
 ## License
 
 Apache License 2.0 - See [LICENSE](LICENSE) for details.
