@@ -1,0 +1,42 @@
+[package]
+name = "danube-source-mqtt"
+version = "0.1.0"
+edition = "2021"
+authors = ["Danube Team"]
+description = "MQTT source connector for Danube Connect"
+license = "Apache-2.0"
+
+[[bin]]
+name = "danube-source-mqtt"
+path = "src/main.rs"
+
+[dependencies]
+# Core connector framework
+danube-connect-core = { path = "../../danube-connect-core" }
+danube-client = { git = "https://github.com/danube-messaging/danube.git" }
+danube-core = { git = "https://github.com/danube-messaging/danube.git" }
+
+# MQTT client
+rumqttc = "0.24"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Configuration
+toml = "0.8"
+
+[dev-dependencies]
+mockall = "0.12"
