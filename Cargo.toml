@@ -7,28 +7,16 @@ members = [
 
 [workspace.dependencies]
 # Core dependencies from danube
-futures = "0.3.31"
-futures-util = "0.3.31"
 tokio = { version = "1.48", features = ["full"] }
-tokio-stream = "0.1.17"
-tokio-util = "0.7"
 async-trait = "0.1.89"
-tonic = { version = "0.14.2", features = ["tls-ring"] }
-tonic-types = "0.14.2"
-tonic-prost = "0.14.2"
-prost = "0.14.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-clap = { version = "4.5.51", features = ["derive"] }
-dashmap = "5.5.3"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 thiserror = "1.0.69"
-base64 = "0.22.1"
 rand = "0.9.2"
 metrics = "0.24.2"
 anyhow = "1.0"
-rustls = "0.23.34"
 tempfile = "3.23"
 
 # Danube dependencies (from crates.io)

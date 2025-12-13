@@ -1,5 +1,10 @@
 # Build stage
-FROM rust:1.75 as builder
+FROM rust:1.83 as builder
+
+# Install protobuf compiler (required for danube-core gRPC compilation)
+RUN apt-get update && apt-get install -y \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
 
@@ -16,6 +21,9 @@ RUN cargo build --release
 
 # Runtime stage
 FROM debian:bookworm-slim
+
+# Alternative: Match Danube's base (if needed for compatibility)
+# FROM debian:bullseye-slim
 
 # Install CA certificates for HTTPS/TLS connections
 RUN apt-get update && apt-get install -y \

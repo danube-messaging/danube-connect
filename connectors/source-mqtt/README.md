@@ -2,6 +2,12 @@
 
 A high-performance MQTT source connector that bridges MQTT-based IoT devices with Danube Messaging. Perfect for ingesting telemetry data from sensors, industrial equipment, smart devices, and edge computing systems.
 
+## 🚀 Quick Start
+
+**Want to try it out?** See the [complete example setup](../../examples/source-mqtt/) for a working end-to-end demonstration with Docker Compose.
+
+**For developers:** See [DEVELOPMENT.md](./DEVELOPMENT.md) for development and testing instructions.
+
 ## Features
 
 - ✅ **Full MQTT 3.1.1 Support** via rumqttc

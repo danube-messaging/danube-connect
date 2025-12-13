@@ -423,6 +423,7 @@ mod tests {
     fn test_connector_creation() {
         let connector = MqttSourceConnector::new();
         assert!(connector.mqtt_client.is_none());
-        assert!(connector.message_buffer.is_empty());
+        assert!(connector.message_rx.is_none());
+        assert_eq!(connector.offset_counter, 0);
     }
 }
