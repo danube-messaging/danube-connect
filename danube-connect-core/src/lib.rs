@@ -16,7 +16,7 @@
 //! ## Quick Start
 //!
 //! ```rust,no_run
-//! use danube_connect_core::{SinkConnector, SinkRecord, ConnectorConfig, ConnectorResult};
+//! use danube_connect_core::{SinkConnector, SinkRecord, ConnectorConfig, ConnectorResult, ConsumerConfig, SubscriptionType};
 //! use async_trait::async_trait;
 //!
 //! pub struct MyConnector;
@@ -26,6 +26,15 @@
 //!     async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> {
 //!         // Setup your connector
 //!         Ok(())
+//!     }
+//!     
+//!     async fn consumer_configs(&self) -> ConnectorResult<Vec<ConsumerConfig>> {
+//!         Ok(vec![ConsumerConfig {
+//!             topic: "/default/my-topic".to_string(),
+//!             consumer_name: "my-consumer".to_string(),
+//!             subscription: "my-sub".to_string(),
+//!             subscription_type: SubscriptionType::Exclusive,
+//!         }])
 //!     }
 //!     
 //!     async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
@@ -54,12 +63,12 @@ mod traits;
 pub mod utils;
 
 // Re-export public API
-pub use config::{ConnectorConfig, SubscriptionType};
+pub use config::{ConnectorConfig, ProcessingSettings, RetrySettings, SubscriptionType};
 pub use error::{ConnectorError, ConnectorResult};
 pub use message::{SinkRecord, SourceRecord};
 pub use metrics::ConnectorMetrics;
 pub use retry::{RetryConfig, RetryStrategy};
-pub use runtime::{SinkRuntime, SourceRuntime};
+pub use runtime::{ConsumerConfig, ProducerConfig, SinkRuntime, SourceRuntime};
 pub use traits::{Offset, SinkConnector, SourceConnector};
 pub use utils::{Batcher, HealthChecker, HealthStatus};
 

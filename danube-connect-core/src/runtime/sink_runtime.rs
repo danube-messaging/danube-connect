@@ -1,0 +1,274 @@
+//! Sink Runtime for Danube → External System connectors
+//!
+//! Handles message consumption from Danube topics and processing through sink connectors.
+//! Supports multiple consumers for consuming from multiple Danube topics.
+
+use crate::{
+    ConnectorConfig, ConnectorError, ConnectorMetrics, ConnectorResult, RetryConfig, RetryStrategy,
+    SinkConnector, SinkRecord, SubscriptionType,
+};
+use danube_client::DanubeClient;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tokio::time::Instant;
+use tracing::{debug, error, info, warn};
+
+/// Configuration for a Danube consumer
+///
+/// Specifies how to create a consumer for a specific topic, including subscription settings.
+#[derive(Debug, Clone)]
+pub struct ConsumerConfig {
+    /// Danube topic to consume from (format: /{namespace}/{topic_name})
+    pub topic: String,
+    /// Consumer name (for identification)
+    pub consumer_name: String,
+    /// Subscription name (shared across consumer instances)
+    pub subscription: String,
+    /// Subscription type (Exclusive, Shared, FailOver)
+    pub subscription_type: SubscriptionType,
+}
+
+/// Runtime for Sink Connectors (Danube → External System)
+///
+/// Manages multiple consumers dynamically, one per source topic.
+pub struct SinkRuntime<C: SinkConnector> {
+    connector: C,
+    client: DanubeClient,
+    config: ConnectorConfig,
+    metrics: Arc<ConnectorMetrics>,
+    retry_strategy: RetryStrategy,
+    shutdown: Arc<AtomicBool>,
+}
+
+impl<C: SinkConnector> SinkRuntime<C> {
+    /// Create a new sink runtime
+    pub async fn new(connector: C, config: ConnectorConfig) -> ConnectorResult<Self> {
+        // Validate configuration
+        config.validate()?;
+
+        // Initialize tracing
+        Self::init_tracing(&config);
+
+        info!("Initializing Sink Runtime");
+        info!("Connector: {}", config.connector_name);
+        info!("Danube URL: {}", config.danube_service_url);
+
+        // Create Danube client
+        let client = DanubeClient::builder()
+            .service_url(&config.danube_service_url)
+            .build()
+            .await
+            .map_err(|e| ConnectorError::fatal_with_source("Failed to create Danube client", e))?;
+
+        // Create metrics (topic will be set dynamically per consumer)
+        let metrics = Arc::new(ConnectorMetrics::new(&config.connector_name, "multi-topic"));
+        metrics.set_health(true);
+
+        // Create retry strategy
+        let retry_strategy = RetryStrategy::new(RetryConfig::new(
+            config.retry.max_retries,
+            config.retry.retry_backoff_ms,
+            config.retry.max_backoff_ms,
+        ));
+
+        Ok(Self {
+            connector,
+            client,
+            config,
+            metrics,
+            retry_strategy,
+            shutdown: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
+    /// Initialize tracing/logging
+    fn init_tracing(config: &ConnectorConfig) {
+        use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+        let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&config.processing.log_level));
+
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    }
+
+    /// Run the sink connector with multiple consumers
+    pub async fn run(&mut self) -> ConnectorResult<()> {
+        info!("Starting Sink Runtime");
+
+        // Setup shutdown handler
+        let shutdown = self.shutdown.clone();
+        tokio::spawn(async move {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Failed to listen for ctrl-c");
+            info!("Received shutdown signal");
+            shutdown.store(true, Ordering::Relaxed);
+        });
+
+        // 1. Initialize connector
+        info!("Initializing connector");
+        self.connector.initialize(self.config.clone()).await?;
+        info!("Connector initialized successfully");
+
+        // 2. Get consumer configurations from connector
+        let consumer_configs = self.connector.consumer_configs().await?;
+
+        if consumer_configs.is_empty() {
+            return Err(ConnectorError::config(
+                "No consumer configurations provided by connector",
+            ));
+        }
+
+        info!("Creating {} consumer(s)", consumer_configs.len());
+
+        // 3. Create all consumers and their message streams
+        let mut streams = Vec::new();
+
+        for consumer_cfg in consumer_configs {
+            info!(
+                "Creating consumer for topic: {} (subscription: {}, type: {:?})",
+                consumer_cfg.topic, consumer_cfg.subscription, consumer_cfg.subscription_type
+            );
+
+            let mut consumer = self
+                .client
+                .new_consumer()
+                .with_topic(&consumer_cfg.topic)
+                .with_consumer_name(&consumer_cfg.consumer_name)
+                .with_subscription(&consumer_cfg.subscription)
+                .with_subscription_type(consumer_cfg.subscription_type.clone().into())
+                .build();
+
+            consumer.subscribe().await.map_err(|e| {
+                ConnectorError::fatal_with_source(
+                    format!("Failed to subscribe to topic {}", consumer_cfg.topic),
+                    e,
+                )
+            })?;
+
+            let message_stream = consumer.receive().await.map_err(|e| {
+                ConnectorError::fatal_with_source(
+                    format!(
+                        "Failed to start message stream for topic {}",
+                        consumer_cfg.topic
+                    ),
+                    e,
+                )
+            })?;
+
+            info!(
+                "Consumer subscribed successfully to topic: {}",
+                consumer_cfg.topic
+            );
+
+            streams.push((consumer_cfg.topic.clone(), consumer, message_stream));
+        }
+
+        info!("All consumers created and subscribed successfully");
+
+        // 4. Main processing loop - handle messages from all consumers
+        info!("Entering main processing loop");
+
+        loop {
+            if self.shutdown.load(Ordering::Relaxed) {
+                break;
+            }
+
+            // Poll all message streams
+            let mut has_activity = false;
+
+            for (topic, consumer, stream) in &mut streams {
+                // Non-blocking check for messages
+                match tokio::time::timeout(std::time::Duration::from_millis(100), stream.recv())
+                    .await
+                {
+                    Ok(Some(msg)) => {
+                        has_activity = true;
+                        self.metrics.record_received();
+
+                        let record = SinkRecord::from_stream_message(msg.clone(), None);
+
+                        debug!(
+                            "Processing message from topic {}: offset={}",
+                            topic,
+                            record.offset()
+                        );
+
+                        // Process with retry logic
+                        match self.process_with_retry(record).await {
+                            Ok(_) => {
+                                // Acknowledge successful processing
+                                if let Err(e) = consumer.ack(&msg).await {
+                                    error!("Failed to acknowledge message: {}", e);
+                                } else {
+                                    self.metrics.record_success();
+                                    debug!("Message acknowledged");
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to process message after retries: {}", e);
+                                self.metrics.record_error(&format!("{:?}", e));
+                                // TODO: Implement dead-letter queue logic
+                            }
+                        }
+                    }
+                    _ => {
+                        // Timeout or no message, continue to next stream
+                    }
+                }
+            }
+
+            // If no activity, sleep briefly to avoid busy-waiting
+            if !has_activity {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        }
+
+        // 5. Graceful shutdown
+        info!("Shutting down connector");
+        self.connector.shutdown().await?;
+        self.metrics.set_health(false);
+        info!("Sink Runtime stopped");
+
+        Ok(())
+    }
+
+    /// Process a record with retry logic
+    async fn process_with_retry(&mut self, record: SinkRecord) -> ConnectorResult<()> {
+        let start = Instant::now();
+        let mut attempt = 0;
+
+        loop {
+            match self.connector.process(record.clone()).await {
+                Ok(_) => {
+                    let duration = start.elapsed();
+                    self.metrics.record_processing_time(duration);
+                    return Ok(());
+                }
+                Err(e) if e.is_retryable() && self.retry_strategy.should_retry(attempt) => {
+                    attempt += 1;
+                    self.metrics.record_retry();
+
+                    let backoff = self.retry_strategy.calculate_backoff(attempt);
+                    warn!(
+                        "Retry attempt {} after {:?} - error: {}",
+                        attempt, backoff, e
+                    );
+
+                    tokio::time::sleep(backoff).await;
+                }
+                Err(e) if e.is_invalid_data() => {
+                    // Skip invalid messages
+                    warn!("Skipping invalid message: {}", e);
+                    return Ok(());
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+    }
+}

@@ -6,7 +6,6 @@ use danube_connect_core::{
     ConnectorConfig, ConnectorError, ConnectorResult, Offset, SourceConnector, SourceRecord,
 };
 use rumqttc::{AsyncClient, Event, Packet, Publish};
-use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tracing::{debug, error, info, warn};
 
@@ -17,7 +16,6 @@ pub struct MqttSourceConnector {
     config: MqttConfig,
     mqtt_client: Option<AsyncClient>,
     message_rx: Option<Receiver<SourceRecord>>,
-    topic_map: HashMap<String, String>,
     offset_counter: u64,
 }
 
@@ -41,7 +39,6 @@ impl MqttSourceConnector {
             },
             mqtt_client: None,
             message_rx: None,
-            topic_map: HashMap::new(),
             offset_counter: 0,
         }
     }
@@ -90,7 +87,6 @@ impl MqttSourceConnector {
     fn spawn_event_loop(
         mut event_loop: rumqttc::EventLoop,
         message_tx: Sender<SourceRecord>,
-        topic_map: HashMap<String, String>,
         topic_mappings: Vec<TopicMapping>,
         include_metadata: bool,
     ) {
@@ -109,17 +105,16 @@ impl MqttSourceConnector {
                                     publish.payload.len()
                                 );
 
-                                // Find matching Danube topic
-                                let danube_topic = Self::find_danube_topic_static(
+                                // Find matching Danube topic mapping
+                                let mapping = Self::find_mapping_static(
                                     &publish.topic,
-                                    &topic_map,
                                     &topic_mappings,
                                 );
 
-                                if let Some(danube_topic) = danube_topic {
+                                if let Some(mapping) = mapping {
                                     let record = Self::publish_to_record_static(
                                         &publish,
-                                        &danube_topic,
+                                        mapping,
                                         include_metadata,
                                     );
 
@@ -169,14 +164,15 @@ impl MqttSourceConnector {
     }
 
     /// Static version of publish_to_record for use in spawned task
+    /// Creates a SourceRecord with full producer configuration from the topic mapping
     fn publish_to_record_static(
         publish: &Publish,
-        danube_topic: &str,
+        mapping: &TopicMapping,
         include_metadata: bool,
     ) -> SourceRecord {
         let payload = publish.payload.to_vec();
 
-        let mut record = SourceRecord::new(danube_topic, payload);
+        let mut record = SourceRecord::new(&mapping.danube_topic, payload);
 
         // Add MQTT metadata as attributes
         if include_metadata {
@@ -191,28 +187,28 @@ impl MqttSourceConnector {
             record = record.with_key(&publish.topic);
         }
 
+        // Set producer configuration from topic mapping
+        let producer_config = danube_connect_core::ProducerConfig {
+            topic: mapping.danube_topic.clone(),
+            partitions: mapping.partitions,
+            reliable_dispatch: mapping.effective_reliable_dispatch(),
+        };
+        record = record.with_producer_config(producer_config);
+
         record
     }
 
-    /// Static version of find_danube_topic for use in spawned task
-    fn find_danube_topic_static(
+    /// Find the matching topic mapping for an MQTT topic
+    /// Returns the TopicMapping which includes Danube topic + producer config
+    fn find_mapping_static<'a>(
         mqtt_topic: &str,
-        topic_map: &HashMap<String, String>,
-        topic_mappings: &[TopicMapping],
-    ) -> Option<String> {
-        // Try exact match first
-        if let Some(danube_topic) = topic_map.get(mqtt_topic) {
-            return Some(danube_topic.clone());
-        }
-
-        // Try wildcard matching
-        for mapping in topic_mappings {
-            if Self::topic_matches(&mapping.mqtt_topic, mqtt_topic) {
-                return Some(mapping.danube_topic.clone());
-            }
-        }
-
-        None
+        topic_mappings: &'a [TopicMapping],
+    ) -> Option<&'a TopicMapping> {
+        // Find first matching mapping (exact or wildcard)
+        topic_mappings.iter().find(|mapping| {
+            // Exact match or wildcard match
+            mapping.mqtt_topic == mqtt_topic || Self::topic_matches(&mapping.mqtt_topic, mqtt_topic)
+        })
     }
 }
 
@@ -239,13 +235,15 @@ impl SourceConnector for MqttSourceConnector {
             self.config.topic_mappings.len()
         );
 
-        // Build topic mapping cache
+        // Log topic mappings
         for mapping in &self.config.topic_mappings {
-            self.topic_map
-                .insert(mapping.mqtt_topic.clone(), mapping.danube_topic.clone());
             info!(
-                "Topic mapping: {} -> {} (QoS: {:?})",
-                mapping.mqtt_topic, mapping.danube_topic, mapping.qos
+                "Topic mapping: {} -> {} (QoS: {:?}, Partitions: {}, Reliable: {})",
+                mapping.mqtt_topic,
+                mapping.danube_topic,
+                mapping.qos,
+                mapping.partitions,
+                mapping.effective_reliable_dispatch()
             );
         }
 
@@ -278,7 +276,6 @@ impl SourceConnector for MqttSourceConnector {
         Self::spawn_event_loop(
             event_loop,
             message_tx,
-            self.topic_map.clone(),
             self.config.topic_mappings.clone(),
             self.config.include_metadata,
         );

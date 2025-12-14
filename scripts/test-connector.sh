@@ -49,7 +49,7 @@ case $COMMAND in
     
     stop)
         echo "Stopping $CONNECTOR example..."
-        docker-compose down
+        docker-compose down -v
         echo "✓ Example stopped!"
         ;;
     

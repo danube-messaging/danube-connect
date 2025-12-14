@@ -31,17 +31,22 @@ async fn main() -> ConnectorResult<()> {
     tracing::info!("Configuration loaded and validated successfully");
     tracing::info!("Connector: {}", config.core.connector_name);
     tracing::info!("Danube URL: {}", config.core.danube_service_url);
-    tracing::info!(
-        "Destination Topic: {}",
-        config
-            .core
-            .destination_topic
-            .as_ref()
-            .unwrap_or(&"<not set>".to_string())
-    );
     tracing::info!("MQTT Broker: {}:{}", config.mqtt.broker_host, config.mqtt.broker_port);
     tracing::info!("MQTT Client ID: {}", config.mqtt.client_id);
     tracing::info!("Topic Mappings: {} configured", config.mqtt.topic_mappings.len());
+    
+    // Log each topic mapping with details
+    for (idx, mapping) in config.mqtt.topic_mappings.iter().enumerate() {
+        tracing::info!(
+            "  [{}] {} → {} (QoS: {:?}, Partitions: {}, Reliable: {})",
+            idx + 1,
+            mapping.mqtt_topic,
+            mapping.danube_topic,
+            mapping.qos,
+            mapping.partitions,
+            mapping.effective_reliable_dispatch()
+        );
+    }
 
     // Create connector instance
     let connector = MqttSourceConnector::new();

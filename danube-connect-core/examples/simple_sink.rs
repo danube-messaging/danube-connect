@@ -15,7 +15,8 @@
 
 use async_trait::async_trait;
 use danube_connect_core::{
-    ConnectorConfig, ConnectorResult, SinkConnector, SinkRecord, SinkRuntime,
+    ConnectorConfig, ConnectorResult, ConsumerConfig, ProcessingSettings, RetrySettings,
+    SinkConnector, SinkRecord, SinkRuntime, SubscriptionType,
 };
 
 /// A simple sink connector that prints messages
@@ -35,6 +36,16 @@ impl SinkConnector for SimpleSinkConnector {
         println!("SimpleSinkConnector initialized");
         println!("Configuration: {:?}", config);
         Ok(())
+    }
+
+    async fn consumer_configs(&self) -> ConnectorResult<Vec<ConsumerConfig>> {
+        // Simple example: consume from one topic
+        Ok(vec![ConsumerConfig {
+            topic: "/default/test".to_string(),
+            consumer_name: "simple-sink-consumer".to_string(),
+            subscription: "simple-sink-sub".to_string(),
+            subscription_type: SubscriptionType::Exclusive,
+        }])
     }
 
     async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
@@ -89,19 +100,8 @@ async fn main() -> ConnectorResult<()> {
         ConnectorConfig {
             danube_service_url: "http://localhost:6650".to_string(),
             connector_name: "simple-sink".to_string(),
-            source_topic: Some("/default/test".to_string()),
-            subscription_name: Some("simple-sink-sub".to_string()),
-            subscription_type: None,
-            destination_topic: None,
-            reliable_dispatch: true,
-            max_retries: 3,
-            retry_backoff_ms: 1000,
-            max_backoff_ms: 30000,
-            batch_size: 1000,
-            batch_timeout_ms: 5000,
-            poll_interval_ms: 100,
-            metrics_port: 9090,
-            log_level: "info".to_string(),
+            retry: RetrySettings::default(),
+            processing: ProcessingSettings::default(),
         }
     });
 

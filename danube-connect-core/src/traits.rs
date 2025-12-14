@@ -49,7 +49,7 @@ impl Offset {
 /// # Example
 ///
 /// ```rust,no_run
-/// use danube_connect_core::{SinkConnector, SinkRecord, ConnectorConfig, ConnectorResult};
+/// use danube_connect_core::{SinkConnector, SinkRecord, ConnectorConfig, ConnectorResult, ConsumerConfig, SubscriptionType};
 /// use async_trait::async_trait;
 /// use std::env;
 ///
@@ -64,6 +64,15 @@ impl Offset {
 ///         self.target_url = env::var("TARGET_URL")
 ///             .map_err(|_| danube_connect_core::ConnectorError::config("TARGET_URL required"))?;
 ///         Ok(())
+///     }
+///     
+///     async fn consumer_configs(&self) -> ConnectorResult<Vec<ConsumerConfig>> {
+///         Ok(vec![ConsumerConfig {
+///             topic: "/default/http-topic".to_string(),
+///             consumer_name: "http-sink-consumer".to_string(),
+///             subscription: "http-sink-sub".to_string(),
+///             subscription_type: SubscriptionType::Exclusive,
+///         }])
 ///     }
 ///     
 ///     async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
@@ -89,6 +98,22 @@ pub trait SinkConnector: Send + Sync {
     /// Return `ConnectorError::Fatal` for initialization failures
     async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()>;
 
+    /// Get consumer configurations for topics to consume from
+    ///
+    /// This method should return a list of consumer configurations, one for each
+    /// Danube topic the connector wants to consume from. The runtime will create
+    /// and manage these consumers automatically.
+    ///
+    /// # Returns
+    ///
+    /// A vector of `ConsumerConfig` specifying which topics to consume from and
+    /// their subscription settings.
+    ///
+    /// # Note
+    ///
+    /// This method is called after `initialize()` and before message processing begins.
+    async fn consumer_configs(&self) -> ConnectorResult<Vec<crate::ConsumerConfig>>;
+
     /// Process a single message from Danube
     ///
     /// This method is called for each message received from the Danube topic.
@@ -113,12 +138,20 @@ pub trait SinkConnector: Send + Sync {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use danube_connect_core::{SinkConnector, SinkRecord, ConnectorConfig, ConnectorResult};
+    /// # use danube_connect_core::{SinkConnector, SinkRecord, ConnectorConfig, ConnectorResult, ConsumerConfig, SubscriptionType};
     /// # use async_trait::async_trait;
     /// # struct MyConnector;
     /// # #[async_trait]
     /// # impl SinkConnector for MyConnector {
     /// #     async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> { Ok(()) }
+    /// #     async fn consumer_configs(&self) -> ConnectorResult<Vec<ConsumerConfig>> {
+    /// #         Ok(vec![ConsumerConfig {
+    /// #             topic: "/default/test".to_string(),
+    /// #             consumer_name: "test-consumer".to_string(),
+    /// #             subscription: "test-sub".to_string(),
+    /// #             subscription_type: SubscriptionType::Exclusive,
+    /// #         }])
+    /// #     }
     /// #     async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> { Ok(()) }
     /// async fn process_batch(&mut self, records: Vec<SinkRecord>) -> ConnectorResult<()> {
     ///     // Bulk insert all records in one operation

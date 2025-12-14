@@ -14,7 +14,8 @@
 
 use async_trait::async_trait;
 use danube_connect_core::{
-    ConnectorConfig, ConnectorResult, SourceConnector, SourceRecord, SourceRuntime,
+    ConnectorConfig, ConnectorResult, ProcessingSettings, ProducerConfig, RetrySettings,
+    SourceConnector, SourceRecord, SourceRuntime,
 };
 use std::time::Duration;
 
@@ -69,7 +70,12 @@ impl SourceConnector for SimpleSourceConnector {
             let record = SourceRecord::from_string("/default/test", message)
                 .with_attribute("source", "simple-source-connector")
                 .with_attribute("message_number", self.counter.to_string())
-                .with_attribute("batch_index", i.to_string());
+                .with_attribute("batch_index", i.to_string())
+                .with_producer_config(ProducerConfig {
+                    topic: "/default/test".to_string(),
+                    partitions: 0,          // Non-partitioned for simple example
+                    reliable_dispatch: true, // Reliable for testing
+                });
 
             records.push(record);
 
@@ -103,19 +109,8 @@ async fn main() -> ConnectorResult<()> {
         ConnectorConfig {
             danube_service_url: "http://localhost:6650".to_string(),
             connector_name: "simple-source".to_string(),
-            source_topic: None,
-            subscription_name: None,
-            subscription_type: None,
-            destination_topic: Some("/default/test".to_string()),
-            reliable_dispatch: true,
-            max_retries: 3,
-            retry_backoff_ms: 1000,
-            max_backoff_ms: 30000,
-            batch_size: 1000,
-            batch_timeout_ms: 5000,
-            poll_interval_ms: 100,
-            metrics_port: 9091,
-            log_level: "info".to_string(),
+            retry: RetrySettings::default(),
+            processing: ProcessingSettings::default(),
         }
     });
 

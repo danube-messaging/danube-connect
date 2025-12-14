@@ -131,8 +131,11 @@ pub struct SourceRecord {
     pub payload: Vec<u8>,
     /// Optional message attributes/headers
     pub attributes: HashMap<String, String>,
-    /// Optional routing key for partitioned topics
+    /// Optional routing key for partitioned topics (will be used when Danube supports it)
     pub key: Option<String>,
+    /// Optional producer configuration for this topic (partitions, reliable dispatch)
+    /// If not specified, runtime will use default configuration
+    pub producer_config: Option<crate::runtime::ProducerConfig>,
 }
 
 impl SourceRecord {
@@ -143,6 +146,7 @@ impl SourceRecord {
             payload,
             attributes: HashMap::new(),
             key: None,
+            producer_config: None,
         }
     }
 
@@ -173,6 +177,12 @@ impl SourceRecord {
     /// Set the routing key for partitioned topics
     pub fn with_key(mut self, key: impl Into<String>) -> Self {
         self.key = Some(key.into());
+        self
+    }
+
+    /// Set the producer configuration for this record's destination topic
+    pub fn with_producer_config(mut self, config: crate::runtime::ProducerConfig) -> Self {
+        self.producer_config = Some(config);
         self
     }
 

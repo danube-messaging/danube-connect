@@ -245,6 +245,8 @@ impl MqttConfig {
                     mqtt_topic,
                     danube_topic,
                     qos,
+                    partitions: 0,                // Default: non-partitioned when loading from ENV
+                    reliable_dispatch: None,      // Will use QoS-based default
                 }
             })
             .collect();
@@ -371,16 +373,39 @@ impl From<QoS> for rumqttc::QoS {
     }
 }
 
-/// Topic mapping configuration
+/// Topic mapping configuration with Danube topic settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TopicMapping {
     /// MQTT topic pattern (supports wildcards: +, #)
     pub mqtt_topic: String,
+    
     /// Target Danube topic
     pub danube_topic: String,
-    /// QoS level for subscription
+    
+    /// QoS level for MQTT subscription
     #[serde(default = "default_qos")]
     pub qos: QoS,
+    
+    /// Number of partitions for the Danube topic (0 = non-partitioned)
+    #[serde(default)]
+    pub partitions: usize,
+    
+    /// Use reliable dispatch for this topic (WAL + Cloud persistence)
+    /// If not specified, determined by QoS level:
+    /// - QoS 0 (AtMostOnce) → non-reliable (default: false)
+    /// - QoS 1/2 (AtLeastOnce/ExactlyOnce) → reliable (default: true)
+    #[serde(default)]
+    pub reliable_dispatch: Option<bool>,
+}
+
+impl TopicMapping {
+    /// Get the effective reliable dispatch setting based on QoS if not explicitly set
+    pub fn effective_reliable_dispatch(&self) -> bool {
+        self.reliable_dispatch.unwrap_or_else(|| {
+            // QoS 0 = non-reliable, QoS 1/2 = reliable
+            self.qos != QoS::AtMostOnce
+        })
+    }
 }
 
 fn default_qos() -> QoS {
@@ -423,6 +448,8 @@ mod tests {
                 mqtt_topic: "sensors/#".to_string(),
                 danube_topic: "/mqtt/sensors".to_string(),
                 qos: QoS::AtLeastOnce,
+                partitions: 0,
+                reliable_dispatch: None,
             }],
             clean_session: true,
             include_metadata: true,

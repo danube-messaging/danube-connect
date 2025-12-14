@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "danube-connect-core"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "danube-client",
@@ -227,7 +227,7 @@ dependencies = [
 
 [[package]]
 name = "danube-source-mqtt"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
