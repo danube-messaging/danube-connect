@@ -1,0 +1,138 @@
+# =============================================================================
+# Danube Connect - MQTT Source Connector Configuration
+# =============================================================================
+#
+# This is a SINGLE configuration file that contains:
+#   1. Core Danube framework settings (at root level)
+#   2. MQTT connector-specific settings (under [mqtt] section)
+#
+# Usage:
+#   export CONFIG_FILE=/path/to/connector.toml
+#   docker run -v ./connector.toml:/etc/config.toml:ro \
+#              -e CONFIG_FILE=/etc/config.toml \
+#              mqtt-connector
+#
+# ENV Variable Overrides:
+#   Any setting can be overridden with environment variables
+#   Example: MQTT_BROKER_HOST=prod-mqtt DANUBE_SERVICE_URL=http://prod:6650
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Core Danube Connect Settings (Common to All Connectors)
+# -----------------------------------------------------------------------------
+
+# Danube broker service URL (required)
+danube_service_url = "http://danube-broker:6650"
+
+# Unique connector name (required)
+connector_name = "mqtt-iot-source"
+
+# Destination topic in Danube where messages will be published
+destination_topic = "/iot/data"
+
+# Runtime behavior
+reliable_dispatch = true
+max_retries = 3
+retry_backoff_ms = 1000
+max_backoff_ms = 30000
+batch_size = 1000
+batch_timeout_ms = 1000
+poll_interval_ms = 100
+
+# Observability
+metrics_port = 9090
+log_level = "info"
+
+# -----------------------------------------------------------------------------
+# MQTT Connector Settings
+# -----------------------------------------------------------------------------
+
+[mqtt]
+# MQTT broker connection settings
+broker_host = "mosquitto"
+broker_port = 1883
+client_id = "danube-connector-1"
+
+# Authentication (optional)
+# username = "mqtt_user"
+# password = "mqtt_pass"
+
+# TLS/SSL settings
+use_tls = false
+
+# Connection parameters
+keep_alive_secs = 60
+connection_timeout_secs = 30
+max_packet_size = 10485760  # 10 MB
+
+# Session settings
+clean_session = true
+include_metadata = true
+
+# ============================================================================
+# Topic Mappings
+# Define which MQTT topics to subscribe to and where to route them in Danube
+# Supports MQTT wildcards: + (single level), # (multi level)
+# ============================================================================
+
+# Example 1: All sensor data from zone1
+[[mqtt.topic_mappings]]
+mqtt_topic = "sensors/+/zone1"
+danube_topic = "/iot/sensors/zone1"
+qos = 1
+
+# Example 2: All device telemetry (any device)
+[[mqtt.topic_mappings]]
+mqtt_topic = "devices/+/telemetry"
+danube_topic = "/iot/devices/telemetry"
+qos = 1
+
+# Example 3: All temperature sensors across all zones
+[[mqtt.topic_mappings]]
+mqtt_topic = "sensors/temp/#"
+danube_topic = "/iot/temperature"
+qos = 1
+
+# Example 4: Catch-all for sensors
+# [[mqtt.topic_mappings]]
+# mqtt_topic = "sensors/#"
+# danube_topic = "/iot/all-sensors"
+# qos = 0
+
+# ============================================================================
+# QoS Levels Explained:
+# - 0 (AtMostOnce):  Fire and forget, fastest but may lose messages
+# - 1 (AtLeastOnce): Guaranteed delivery, may receive duplicates
+# - 2 (ExactlyOnce): Guaranteed exactly once, slowest but most reliable
+# ============================================================================
+
+# ============================================================================
+# Environment Variable Overrides
+# ============================================================================
+# You can override any setting using environment variables:
+#
+# Core settings:
+#   DANUBE_SERVICE_URL=http://broker:6650
+#   CONNECTOR_NAME=my-connector
+#   DANUBE_TOPIC=/my/topic
+#   RELIABLE_DISPATCH=true
+#   MAX_RETRIES=5
+#   POLL_INTERVAL_MS=200
+#   METRICS_PORT=9090
+#   LOG_LEVEL=debug
+#
+# MQTT settings:
+#   MQTT_BROKER_HOST=mosquitto
+#   MQTT_BROKER_PORT=1883
+#   MQTT_CLIENT_ID=connector-1
+#   MQTT_USERNAME=user
+#   MQTT_PASSWORD=pass
+#   MQTT_USE_TLS=true
+#
+# This is especially useful for:
+# - Secrets (passwords, tokens) in production
+# - Environment-specific overrides (dev/staging/prod)
+# - Kubernetes ConfigMaps and Secrets
+# - Docker Compose environment sections
+# ============================================================================

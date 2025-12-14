@@ -51,6 +51,7 @@ impl Offset {
 /// ```rust,no_run
 /// use danube_connect_core::{SinkConnector, SinkRecord, ConnectorConfig, ConnectorResult};
 /// use async_trait::async_trait;
+/// use std::env;
 ///
 /// pub struct HttpSink {
 ///     target_url: String,
@@ -59,12 +60,14 @@ impl Offset {
 /// #[async_trait]
 /// impl SinkConnector for HttpSink {
 ///     async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> {
-///         self.target_url = config.get_string("TARGET_URL")?;
+///         // Connectors now manage their own config
+///         self.target_url = env::var("TARGET_URL")
+///             .map_err(|_| danube_connect_core::ConnectorError::config("TARGET_URL required"))?;
 ///         Ok(())
 ///     }
 ///     
 ///     async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-///         // Send HTTP POST request
+///         // Send HTTP POST request with self.target_url
 ///         Ok(())
 ///     }
 /// }
@@ -160,6 +163,7 @@ pub trait SinkConnector: Send + Sync {
 /// ```rust,no_run
 /// use danube_connect_core::{SourceConnector, SourceRecord, ConnectorConfig, ConnectorResult, Offset};
 /// use async_trait::async_trait;
+/// use std::env;
 ///
 /// pub struct FileSource {
 ///     file_path: String,
@@ -169,12 +173,14 @@ pub trait SinkConnector: Send + Sync {
 /// #[async_trait]
 /// impl SourceConnector for FileSource {
 ///     async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> {
-///         self.file_path = config.get_string("FILE_PATH")?;
+///         // Connectors now manage their own config
+///         self.file_path = env::var("FILE_PATH")
+///             .map_err(|_| danube_connect_core::ConnectorError::config("FILE_PATH required"))?;
 ///         Ok(())
 ///     }
 ///     
 ///     async fn poll(&mut self) -> ConnectorResult<Vec<SourceRecord>> {
-///         // Read new lines from file
+///         // Read new lines from file at self.file_path
 ///         Ok(vec![])
 ///     }
 ///     

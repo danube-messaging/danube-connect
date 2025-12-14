@@ -6,8 +6,9 @@
 mod config;
 mod connector;
 
+use config::MqttSourceConfig;
 use connector::MqttSourceConnector;
-use danube_connect_core::{ConnectorConfig, ConnectorResult, SourceRuntime};
+use danube_connect_core::{ConnectorResult, SourceRuntime};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -18,28 +19,35 @@ async fn main() -> ConnectorResult<()> {
     tracing::info!("Starting MQTT Source Connector");
     tracing::info!("Version: {}", env!("CARGO_PKG_VERSION"));
 
-    // Load configuration
-    let config = ConnectorConfig::from_env().map_err(|e| {
+    // Load unified configuration from single file (TOML + ENV overrides)
+    let config = MqttSourceConfig::load().map_err(|e| {
         tracing::error!("Failed to load configuration: {}", e);
         e
     })?;
 
-    tracing::info!("Configuration loaded successfully");
-    tracing::info!("Connector: {}", config.connector_name);
-    tracing::info!("Danube URL: {}", config.danube_service_url);
+    // Validate configuration
+    config.validate()?;
+
+    tracing::info!("Configuration loaded and validated successfully");
+    tracing::info!("Connector: {}", config.core.connector_name);
+    tracing::info!("Danube URL: {}", config.core.danube_service_url);
     tracing::info!(
         "Destination Topic: {}",
         config
+            .core
             .destination_topic
             .as_ref()
             .unwrap_or(&"<not set>".to_string())
     );
+    tracing::info!("MQTT Broker: {}:{}", config.mqtt.broker_host, config.mqtt.broker_port);
+    tracing::info!("MQTT Client ID: {}", config.mqtt.client_id);
+    tracing::info!("Topic Mappings: {} configured", config.mqtt.topic_mappings.len());
 
     // Create connector instance
     let connector = MqttSourceConnector::new();
 
     // Create and run the runtime
-    let mut runtime = SourceRuntime::new(connector, config).await?;
+    let mut runtime = SourceRuntime::new(connector, config.core).await?;
 
     // Run until shutdown signal
     runtime.run().await?;

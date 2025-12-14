@@ -2,6 +2,10 @@
 //!
 //! This example demonstrates a minimal source connector that generates test messages.
 //!
+//! **NOTE:** This is a simplified example for testing the core library.
+//! For production connectors, use the unified TOML+ENV configuration pattern.
+//! See `connectors/source-mqtt/` for the recommended implementation.
+//!
 //! Usage:
 //!   DANUBE_SERVICE_URL=http://localhost:6650 \
 //!   CONNECTOR_NAME=simple-source \
@@ -112,7 +116,6 @@ async fn main() -> ConnectorResult<()> {
             poll_interval_ms: 100,
             metrics_port: 9091,
             log_level: "info".to_string(),
-            connector_config: Default::default(),
         }
     });
 

@@ -112,24 +112,99 @@ docker-compose down
 
 ## 📋 Configuration
 
-### Environment Variables
+### Single Configuration File
 
-Edit `.env.example` and create `.env` file:
+The connector uses **one TOML file** containing all settings (both core and MQTT-specific).
+
+**Priority:** TOML file → Environment variable overrides
+
+#### Quick Start with TOML
 
 ```bash
-cp .env.example .env
-# Edit .env with your settings
+# Review the config file (everything in one place!)
+cat connector.toml
+
+# That's it! One file with all settings
+# The docker-compose.yml automatically mounts it
+
+# Start the connector
 docker-compose up
 ```
 
-Key configurations:
+#### Configuration Structure
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MQTT_BROKER_HOST` | `mosquitto` | MQTT broker hostname |
-| `MQTT_TOPICS` | `sensors/#,devices/+/telemetry` | Topics to subscribe |
-| `MQTT_DANUBE_TOPIC` | `/iot/data` | Target Danube topic |
-| `MQTT_QOS` | `1` | Quality of Service level |
+**One file, two sections:**
+
+```toml
+# Part 1: Core Danube settings (at root level)
+danube_service_url = "http://danube-broker:6650"
+connector_name = "mqtt-iot-source"
+destination_topic = "/iot/data"
+max_retries = 3
+# ... runtime settings
+
+# Part 2: MQTT-specific settings (under [mqtt])
+[mqtt]
+broker_host = "mosquitto"
+broker_port = 1883
+client_id = "danube-connector-1"
+
+# Topic mappings with wildcards
+[[mqtt.topic_mappings]]
+mqtt_topic = "sensors/+/zone1"
+danube_topic = "/iot/sensors/zone1"
+qos = 1
+```
+
+📖 **See `connector.toml` for the complete, documented configuration**
+
+#### Environment Variable Overrides
+
+Override any TOML setting with environment variables:
+
+```bash
+# Override broker host
+export MQTT_BROKER_HOST=different-broker
+docker-compose up
+
+# Or in docker-compose.yml
+environment:
+  MQTT_BROKER_HOST: "production-mqtt"
+  MQTT_CLIENT_ID: "prod-connector"
+```
+
+**Common overrides:**
+
+| Variable | Purpose |
+|----------|---------|
+| `CONFIG_FILE` | Path to TOML config file |
+| `DANUBE_SERVICE_URL` | Override Danube broker URL |
+| `MQTT_BROKER_HOST` | Override MQTT broker host |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | Inject secrets |
+| `LOG_LEVEL` | Change logging verbosity |
+
+#### ENV-Only Configuration (Alternative)
+
+If you prefer environment variables only (no TOML file):
+
+```bash
+# Don't set CONFIG_FILE, and set all required ENV vars
+export DANUBE_SERVICE_URL=http://localhost:6650
+export CONNECTOR_NAME=mqtt-source
+export MQTT_BROKER_HOST=mosquitto
+export MQTT_BROKER_PORT=1883
+export MQTT_CLIENT_ID=connector-1
+export MQTT_TOPICS="sensors/#,devices/+/telemetry"
+export MQTT_DANUBE_TOPIC="/iot/data"
+export MQTT_QOS=1
+```
+
+**Why TOML is Better:**
+- ✅ Structured, type-safe configuration
+- ✅ Support for complex structures (arrays, nested objects)
+- ✅ Self-documenting with comments
+- ✅ Version control friendly
+- ✅ Validation at startup
 
 ### Customizing MQTT Broker
 

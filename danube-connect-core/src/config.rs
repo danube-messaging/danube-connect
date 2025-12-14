@@ -3,7 +3,6 @@
 use crate::{ConnectorError, ConnectorResult};
 use danube_client::SubType;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::env;
 
 /// Subscription type for configuration (mirrors SubType but with Serialize/Deserialize)
@@ -71,10 +70,6 @@ pub struct ConnectorConfig {
 
     /// Log level
     pub log_level: String,
-
-    /// Connector-specific configuration
-    #[serde(flatten)]
-    pub connector_config: HashMap<String, String>,
 }
 
 impl ConnectorConfig {
@@ -161,33 +156,6 @@ impl ConnectorConfig {
 
         let log_level = env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
 
-        // Collect all other env vars for connector-specific config
-        let connector_config = env::vars()
-            .filter(|(key, _)| {
-                !key.starts_with("DANUBE_")
-                    && !key.starts_with("CONNECTOR_")
-                    && !key.starts_with("SUBSCRIPTION_")
-                    && !matches!(
-                        key.as_str(),
-                        "RELIABLE_DISPATCH"
-                            | "MAX_RETRIES"
-                            | "RETRY_BACKOFF_MS"
-                            | "MAX_BACKOFF_MS"
-                            | "BATCH_SIZE"
-                            | "BATCH_TIMEOUT_MS"
-                            | "POLL_INTERVAL_MS"
-                            | "METRICS_PORT"
-                            | "LOG_LEVEL"
-                            | "RUST_LOG"
-                            | "PATH"
-                            | "HOME"
-                            | "USER"
-                            | "SHELL"
-                            | "TERM"
-                    )
-            })
-            .collect();
-
         Ok(Self {
             danube_service_url,
             connector_name,
@@ -204,7 +172,6 @@ impl ConnectorConfig {
             poll_interval_ms,
             metrics_port,
             log_level,
-            connector_config,
         })
     }
 
@@ -217,6 +184,46 @@ impl ConnectorConfig {
         toml::from_str(&content).map_err(|e| {
             ConnectorError::config(format!("Failed to parse config file {}: {}", path, e))
         })
+    }
+
+    /// Apply environment variable overrides to core configuration
+    ///
+    /// This is a helper method for connectors to apply ENV overrides
+    /// after loading from TOML. The core library itself doesn't load files.
+    pub fn apply_env_overrides(&mut self) {
+        if let Ok(val) = env::var("DANUBE_SERVICE_URL") {
+            self.danube_service_url = val;
+        }
+        if let Ok(val) = env::var("CONNECTOR_NAME") {
+            self.connector_name = val;
+        }
+        if let Ok(val) = env::var("DANUBE_TOPIC") {
+            self.source_topic = Some(val.clone());
+            self.destination_topic = Some(val);
+        }
+        if let Ok(val) = env::var("RELIABLE_DISPATCH") {
+            if let Ok(b) = val.parse() {
+                self.reliable_dispatch = b;
+            }
+        }
+        if let Ok(val) = env::var("MAX_RETRIES") {
+            if let Ok(n) = val.parse() {
+                self.max_retries = n;
+            }
+        }
+        if let Ok(val) = env::var("POLL_INTERVAL_MS") {
+            if let Ok(n) = val.parse() {
+                self.poll_interval_ms = n;
+            }
+        }
+        if let Ok(val) = env::var("METRICS_PORT") {
+            if let Ok(n) = val.parse() {
+                self.metrics_port = n;
+            }
+        }
+        if let Ok(val) = env::var("LOG_LEVEL") {
+            self.log_level = val;
+        }
     }
 
     /// Validate the configuration
@@ -239,43 +246,6 @@ impl ConnectorConfig {
 
         Ok(())
     }
-
-    /// Get a string value from connector-specific config
-    pub fn get_string(&self, key: &str) -> ConnectorResult<String> {
-        self.connector_config
-            .get(key)
-            .cloned()
-            .ok_or_else(|| ConnectorError::config(format!("Missing config key: {}", key)))
-    }
-
-    /// Get an optional string value
-    pub fn get_optional_string(&self, key: &str) -> Option<String> {
-        self.connector_config.get(key).cloned()
-    }
-
-    /// Get a parsed value from connector-specific config
-    pub fn get<T: std::str::FromStr>(&self, key: &str) -> ConnectorResult<T>
-    where
-        T::Err: std::fmt::Display,
-    {
-        let value = self.get_string(key)?;
-        value.parse::<T>().map_err(|e| {
-            ConnectorError::config(format!("Failed to parse config key {}: {}", key, e))
-        })
-    }
-
-    /// Get an optional parsed value
-    pub fn get_optional<T: std::str::FromStr>(&self, key: &str) -> Option<T>
-    where
-        T::Err: std::fmt::Display,
-    {
-        self.get_optional_string(key).and_then(|s| s.parse().ok())
-    }
-
-    /// Check if a config key exists
-    pub fn contains(&self, key: &str) -> bool {
-        self.connector_config.contains_key(key)
-    }
 }
 
 impl Default for ConnectorConfig {
@@ -296,7 +266,6 @@ impl Default for ConnectorConfig {
             poll_interval_ms: 100,
             metrics_port: 9090,
             log_level: "info".to_string(),
-            connector_config: HashMap::new(),
         }
     }
 }
@@ -325,31 +294,5 @@ mod tests {
         config.danube_service_url = "http://localhost:6650".to_string();
         config.batch_size = 0;
         assert!(config.validate().is_err());
-    }
-
-    #[test]
-    fn test_config_get_methods() {
-        let mut config = ConnectorConfig::default();
-        config
-            .connector_config
-            .insert("KEY1".to_string(), "value1".to_string());
-        config
-            .connector_config
-            .insert("PORT".to_string(), "8080".to_string());
-
-        assert_eq!(config.get_string("KEY1").unwrap(), "value1");
-        assert!(config.get_string("KEY2").is_err());
-
-        assert_eq!(
-            config.get_optional_string("KEY1"),
-            Some("value1".to_string())
-        );
-        assert_eq!(config.get_optional_string("KEY2"), None);
-
-        assert_eq!(config.get::<u16>("PORT").unwrap(), 8080);
-        assert!(config.get::<u16>("KEY1").is_err());
-
-        assert!(config.contains("KEY1"));
-        assert!(!config.contains("KEY2"));
     }
 }

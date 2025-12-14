@@ -93,24 +93,20 @@ services:
         condition: service_healthy
       danube-broker:
         condition: service_started
+    volumes:
+      # Mount TOML configuration file
+      - ./connector.toml:/etc/danube-connect/connector.toml:ro
     environment:
-      # Danube configuration
-      DANUBE_SERVICE_URL: "http://danube-broker:6650"
-      CONNECTOR_NAME: "mqtt-iot-source"
-
-      # MQTT configuration
-      MQTT_BROKER_HOST: "mosquitto"
-      MQTT_BROKER_PORT: "1883"
-      MQTT_CLIENT_ID: "danube-connector-1"
-      MQTT_TOPICS: "sensors/#,devices/+/telemetry"
-      MQTT_DANUBE_TOPIC: "/iot/data"
-      MQTT_QOS: "1"
-
-      # Runtime options
-      RELIABLE_DISPATCH: "true"
-      POLL_INTERVAL_MS: "100"
-
-      # Logging
+      # Primary configuration source: TOML file
+      CONFIG_FILE: "/etc/danube-connect/connector.toml"
+      
+      # Environment variable overrides (optional)
+      # Uncomment to override specific settings from TOML
+      # DANUBE_SERVICE_URL: "http://danube-broker:6650"
+      # MQTT_BROKER_HOST: "mosquitto"
+      # MQTT_CLIENT_ID: "danube-connector-override"
+      
+      # Logging (can override TOML setting)
       RUST_LOG: "info,danube_source_mqtt=debug"
     networks:
       - danube-mqtt-network
