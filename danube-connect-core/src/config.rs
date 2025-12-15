@@ -5,24 +5,6 @@ use danube_client::SubType;
 use serde::{Deserialize, Serialize};
 use std::env;
 
-/// Subscription type for configuration (mirrors SubType but with Serialize/Deserialize)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SubscriptionType {
-    Exclusive,
-    Shared,
-    FailOver,
-}
-
-impl From<SubscriptionType> for SubType {
-    fn from(st: SubscriptionType) -> Self {
-        match st {
-            SubscriptionType::Exclusive => SubType::Exclusive,
-            SubscriptionType::Shared => SubType::Shared,
-            SubscriptionType::FailOver => SubType::FailOver,
-        }
-    }
-}
-
 /// Main configuration for connectors
 ///
 /// # Structure
@@ -210,6 +192,24 @@ impl Default for ProcessingSettings {
             poll_interval_ms: 100,
             metrics_port: 9090,
             log_level: "info".to_string(),
+        }
+    }
+}
+
+/// Subscription type for configuration (mirrors SubType but with Serialize/Deserialize)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SubscriptionType {
+    Exclusive,
+    Shared,
+    FailOver,
+}
+
+impl From<SubscriptionType> for SubType {
+    fn from(st: SubscriptionType) -> Self {
+        match st {
+            SubscriptionType::Exclusive => SubType::Exclusive,
+            SubscriptionType::Shared => SubType::Shared,
+            SubscriptionType::FailOver => SubType::FailOver,
         }
     }
 }

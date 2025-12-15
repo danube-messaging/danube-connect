@@ -9,7 +9,6 @@
 //! Usage:
 //!   DANUBE_SERVICE_URL=http://localhost:6650 \
 //!   CONNECTOR_NAME=simple-source \
-//!   DANUBE_TOPIC=/default/test \
 //!   cargo run --example simple_source
 
 use async_trait::async_trait;
@@ -43,6 +42,15 @@ impl SourceConnector for SimpleSourceConnector {
         Ok(())
     }
 
+    async fn producer_configs(&self) -> ConnectorResult<Vec<ProducerConfig>> {
+        // Define the single topic this connector will publish to
+        Ok(vec![ProducerConfig {
+            topic: "/default/test".to_string(),
+            partitions: 0,           // Non-partitioned for simple example
+            reliable_dispatch: true, // Reliable for testing
+        }])
+    }
+
     async fn poll(&mut self) -> ConnectorResult<Vec<SourceRecord>> {
         // Check if we've reached the limit
         if self.counter >= self.max_messages {
@@ -70,12 +78,7 @@ impl SourceConnector for SimpleSourceConnector {
             let record = SourceRecord::from_string("/default/test", message)
                 .with_attribute("source", "simple-source-connector")
                 .with_attribute("message_number", self.counter.to_string())
-                .with_attribute("batch_index", i.to_string())
-                .with_producer_config(ProducerConfig {
-                    topic: "/default/test".to_string(),
-                    partitions: 0,          // Non-partitioned for simple example
-                    reliable_dispatch: true, // Reliable for testing
-                });
+                .with_attribute("batch_index", i.to_string());
 
             records.push(record);
 
@@ -103,7 +106,6 @@ async fn main() -> ConnectorResult<()> {
         println!("To use custom settings, set environment variables:");
         println!("  DANUBE_SERVICE_URL (default: http://localhost:6650)");
         println!("  CONNECTOR_NAME (default: simple-source)");
-        println!("  DANUBE_TOPIC (default: /default/test)");
         println!();
 
         ConnectorConfig {

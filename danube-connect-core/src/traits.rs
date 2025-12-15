@@ -7,41 +7,6 @@
 use crate::{ConnectorConfig, ConnectorResult, SinkRecord, SourceRecord};
 use async_trait::async_trait;
 
-/// Checkpoint/offset information for source connectors
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Offset {
-    /// The partition or source identifier
-    pub partition: String,
-    /// The offset value (interpretation depends on source)
-    pub value: u64,
-    /// Optional metadata
-    pub metadata: Option<String>,
-}
-
-impl Offset {
-    /// Create a new offset
-    pub fn new(partition: impl Into<String>, value: u64) -> Self {
-        Self {
-            partition: partition.into(),
-            value,
-            metadata: None,
-        }
-    }
-
-    /// Create an offset with metadata
-    pub fn with_metadata(
-        partition: impl Into<String>,
-        value: u64,
-        metadata: impl Into<String>,
-    ) -> Self {
-        Self {
-            partition: partition.into(),
-            value,
-            metadata: Some(metadata.into()),
-        }
-    }
-}
-
 /// Trait for implementing Sink Connectors (Danube → External System)
 ///
 /// Sink connectors consume messages from Danube topics and write them to external systems.
@@ -194,7 +159,7 @@ pub trait SinkConnector: Send + Sync {
 /// # Example
 ///
 /// ```rust,no_run
-/// use danube_connect_core::{SourceConnector, SourceRecord, ConnectorConfig, ConnectorResult, Offset};
+/// use danube_connect_core::{SourceConnector, SourceRecord, ConnectorConfig, ConnectorResult, Offset, ProducerConfig};
 /// use async_trait::async_trait;
 /// use std::env;
 ///
@@ -210,6 +175,17 @@ pub trait SinkConnector: Send + Sync {
 ///         self.file_path = env::var("FILE_PATH")
 ///             .map_err(|_| danube_connect_core::ConnectorError::config("FILE_PATH required"))?;
 ///         Ok(())
+///     }
+///     
+///     async fn producer_configs(&self) -> ConnectorResult<Vec<ProducerConfig>> {
+///         // Define destination topics and their configurations
+///         Ok(vec![
+///             ProducerConfig {
+///                 topic: "/default/file_data".to_string(),
+///                 partitions: 0,
+///                 reliable_dispatch: false,
+///             }
+///         ])
 ///     }
 ///     
 ///     async fn poll(&mut self) -> ConnectorResult<Vec<SourceRecord>> {
@@ -233,6 +209,21 @@ pub trait SourceConnector: Send + Sync {
     /// - Load last checkpoint/offset
     /// - Initialize internal state
     async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()>;
+
+    /// Get producer configurations for all topics this connector will publish to
+    ///
+    /// This method should return the complete list of Danube topics and their
+    /// configurations (partitions, reliable dispatch) that this connector will use.
+    /// The runtime will create all producers upfront based on this configuration.
+    ///
+    /// The connector doesn't need to know about producers - it just returns
+    /// SourceRecords with topic information, and the runtime maps them to the
+    /// appropriate pre-created producer.
+    ///
+    /// # Returns
+    ///
+    /// Vector of `ProducerConfig` objects, one for each destination topic.
+    async fn producer_configs(&self) -> ConnectorResult<Vec<crate::runtime::ProducerConfig>>;
 
     /// Poll for new data from the external system
     ///
@@ -271,6 +262,41 @@ pub trait SourceConnector: Send + Sync {
     /// Optional: Health check implementation
     async fn health_check(&self) -> ConnectorResult<()> {
         Ok(())
+    }
+}
+
+/// Checkpoint/offset information for source connectors
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Offset {
+    /// The partition or source identifier
+    pub partition: String,
+    /// The offset value (interpretation depends on source)
+    pub value: u64,
+    /// Optional metadata
+    pub metadata: Option<String>,
+}
+
+impl Offset {
+    /// Create a new offset
+    pub fn new(partition: impl Into<String>, value: u64) -> Self {
+        Self {
+            partition: partition.into(),
+            value,
+            metadata: None,
+        }
+    }
+
+    /// Create an offset with metadata
+    pub fn with_metadata(
+        partition: impl Into<String>,
+        value: u64,
+        metadata: impl Into<String>,
+    ) -> Self {
+        Self {
+            partition: partition.into(),
+            value,
+            metadata: Some(metadata.into()),
+        }
     }
 }
 

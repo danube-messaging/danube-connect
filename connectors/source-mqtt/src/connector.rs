@@ -106,10 +106,8 @@ impl MqttSourceConnector {
                                 );
 
                                 // Find matching Danube topic mapping
-                                let mapping = Self::find_mapping_static(
-                                    &publish.topic,
-                                    &topic_mappings,
-                                );
+                                let mapping =
+                                    Self::find_mapping_static(&publish.topic, &topic_mappings);
 
                                 if let Some(mapping) = mapping {
                                     let record = Self::publish_to_record_static(
@@ -164,7 +162,7 @@ impl MqttSourceConnector {
     }
 
     /// Static version of publish_to_record for use in spawned task
-    /// Creates a SourceRecord with full producer configuration from the topic mapping
+    /// Creates a SourceRecord from MQTT message and topic mapping
     fn publish_to_record_static(
         publish: &Publish,
         mapping: &TopicMapping,
@@ -187,19 +185,10 @@ impl MqttSourceConnector {
             record = record.with_key(&publish.topic);
         }
 
-        // Set producer configuration from topic mapping
-        let producer_config = danube_connect_core::ProducerConfig {
-            topic: mapping.danube_topic.clone(),
-            partitions: mapping.partitions,
-            reliable_dispatch: mapping.effective_reliable_dispatch(),
-        };
-        record = record.with_producer_config(producer_config);
-
         record
     }
 
     /// Find the matching topic mapping for an MQTT topic
-    /// Returns the TopicMapping which includes Danube topic + producer config
     fn find_mapping_static<'a>(
         mqtt_topic: &str,
         topic_mappings: &'a [TopicMapping],
@@ -285,6 +274,29 @@ impl SourceConnector for MqttSourceConnector {
 
         info!("MQTT Source Connector initialized successfully");
         Ok(())
+    }
+
+    async fn producer_configs(&self) -> ConnectorResult<Vec<danube_connect_core::ProducerConfig>> {
+        // Extract all unique Danube topics from the topic mappings
+        // and create producer configurations for each
+        let producer_configs: Vec<_> = self
+            .config
+            .topic_mappings
+            .iter()
+            .map(|mapping| danube_connect_core::ProducerConfig {
+                topic: mapping.danube_topic.clone(),
+                partitions: mapping.partitions,
+                reliable_dispatch: mapping.effective_reliable_dispatch(),
+            })
+            .collect();
+
+        if producer_configs.is_empty() {
+            return Err(ConnectorError::config(
+                "No topic mappings configured. Please add topic mappings in the configuration.",
+            ));
+        }
+
+        Ok(producer_configs)
     }
 
     async fn poll(&mut self) -> ConnectorResult<Vec<SourceRecord>> {

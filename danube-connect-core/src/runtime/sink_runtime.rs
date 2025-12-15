@@ -10,6 +10,7 @@ use crate::{
 use danube_client::DanubeClient;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
@@ -26,6 +27,13 @@ pub struct ConsumerConfig {
     pub subscription: String,
     /// Subscription type (Exclusive, Shared, FailOver)
     pub subscription_type: SubscriptionType,
+}
+
+/// Internal struct to hold consumer and its stream together
+struct ConsumerStream {
+    topic: String,
+    consumer: danube_client::Consumer,
+    stream: mpsc::Receiver<danube_core::message::StreamMessage>,
 }
 
 /// Runtime for Sink Connectors (Danube → External System)
@@ -81,24 +89,28 @@ impl<C: SinkConnector> SinkRuntime<C> {
         })
     }
 
-    /// Initialize tracing/logging
-    fn init_tracing(config: &ConnectorConfig) {
-        use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-        let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&config.processing.log_level));
-
-        tracing_subscriber::registry()
-            .with(env_filter)
-            .with(tracing_subscriber::fmt::layer())
-            .init();
-    }
-
     /// Run the sink connector with multiple consumers
     pub async fn run(&mut self) -> ConnectorResult<()> {
         info!("Starting Sink Runtime");
 
         // Setup shutdown handler
+        self.setup_shutdown_handler();
+
+        // Initialize connector and create consumers
+        self.initialize_connector().await?;
+        let mut streams = self.create_consumers().await?;
+
+        // Main processing loop
+        self.process_messages(&mut streams).await?;
+
+        // Graceful shutdown
+        self.shutdown_connector().await?;
+
+        Ok(())
+    }
+
+    /// Setup shutdown signal handler
+    fn setup_shutdown_handler(&self) {
         let shutdown = self.shutdown.clone();
         tokio::spawn(async move {
             tokio::signal::ctrl_c()
@@ -107,13 +119,31 @@ impl<C: SinkConnector> SinkRuntime<C> {
             info!("Received shutdown signal");
             shutdown.store(true, Ordering::Relaxed);
         });
+    }
 
-        // 1. Initialize connector
+    /// Initialize the connector
+    async fn initialize_connector(&mut self) -> ConnectorResult<()> {
         info!("Initializing connector");
         self.connector.initialize(self.config.clone()).await?;
         info!("Connector initialized successfully");
+        Ok(())
+    }
 
-        // 2. Get consumer configurations from connector
+    /// Gracefully shutdown the connector
+    async fn shutdown_connector(&mut self) -> ConnectorResult<()> {
+        info!("Shutting down connector");
+        self.connector.shutdown().await?;
+        self.metrics.set_health(false);
+        info!("Sink Runtime stopped");
+        Ok(())
+    }
+
+    /// Create consumers for all configured topics
+    ///
+    /// Returns a vector of (topic, consumer, message_stream) tuples
+    /// The type is intentionally opaque to avoid exposing internal danube-client stream types
+    async fn create_consumers(&mut self) -> ConnectorResult<Vec<ConsumerStream>> {
+        // Get consumer configurations from connector
         let consumer_configs = self.connector.consumer_configs().await?;
 
         if consumer_configs.is_empty() {
@@ -124,7 +154,6 @@ impl<C: SinkConnector> SinkRuntime<C> {
 
         info!("Creating {} consumer(s)", consumer_configs.len());
 
-        // 3. Create all consumers and their message streams
         let mut streams = Vec::new();
 
         for consumer_cfg in consumer_configs {
@@ -164,12 +193,19 @@ impl<C: SinkConnector> SinkRuntime<C> {
                 consumer_cfg.topic
             );
 
-            streams.push((consumer_cfg.topic.clone(), consumer, message_stream));
+            streams.push(ConsumerStream {
+                topic: consumer_cfg.topic.clone(),
+                consumer,
+                stream: message_stream,
+            });
         }
 
         info!("All consumers created and subscribed successfully");
+        Ok(streams)
+    }
 
-        // 4. Main processing loop - handle messages from all consumers
+    /// Main message processing loop
+    async fn process_messages(&mut self, streams: &mut [ConsumerStream]) -> ConnectorResult<()> {
         info!("Entering main processing loop");
 
         loop {
@@ -180,10 +216,13 @@ impl<C: SinkConnector> SinkRuntime<C> {
             // Poll all message streams
             let mut has_activity = false;
 
-            for (topic, consumer, stream) in &mut streams {
+            for consumer_stream in streams.iter_mut() {
                 // Non-blocking check for messages
-                match tokio::time::timeout(std::time::Duration::from_millis(100), stream.recv())
-                    .await
+                match tokio::time::timeout(
+                    std::time::Duration::from_millis(100),
+                    consumer_stream.stream.recv(),
+                )
+                .await
                 {
                     Ok(Some(msg)) => {
                         has_activity = true;
@@ -193,7 +232,7 @@ impl<C: SinkConnector> SinkRuntime<C> {
 
                         debug!(
                             "Processing message from topic {}: offset={}",
-                            topic,
+                            consumer_stream.topic,
                             record.offset()
                         );
 
@@ -201,7 +240,7 @@ impl<C: SinkConnector> SinkRuntime<C> {
                         match self.process_with_retry(record).await {
                             Ok(_) => {
                                 // Acknowledge successful processing
-                                if let Err(e) = consumer.ack(&msg).await {
+                                if let Err(e) = consumer_stream.consumer.ack(&msg).await {
                                     error!("Failed to acknowledge message: {}", e);
                                 } else {
                                     self.metrics.record_success();
@@ -215,6 +254,9 @@ impl<C: SinkConnector> SinkRuntime<C> {
                             }
                         }
                     }
+                    Ok(None) => {
+                        // Channel closed
+                    }
                     _ => {
                         // Timeout or no message, continue to next stream
                     }
@@ -226,12 +268,6 @@ impl<C: SinkConnector> SinkRuntime<C> {
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
             }
         }
-
-        // 5. Graceful shutdown
-        info!("Shutting down connector");
-        self.connector.shutdown().await?;
-        self.metrics.set_health(false);
-        info!("Sink Runtime stopped");
 
         Ok(())
     }
@@ -270,5 +306,18 @@ impl<C: SinkConnector> SinkRuntime<C> {
                 }
             }
         }
+    }
+
+    /// Initialize tracing/logging
+    fn init_tracing(config: &ConnectorConfig) {
+        use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+        let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&config.processing.log_level));
+
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .init();
     }
 }
