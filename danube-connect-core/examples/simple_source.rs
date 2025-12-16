@@ -85,8 +85,8 @@ impl SourceConnector for SimpleSourceConnector {
             println!("Generated message #{}", self.counter);
         }
 
-        // Simulate some processing time
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // Add delay between batches to make output more readable
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         Ok(records)
     }
