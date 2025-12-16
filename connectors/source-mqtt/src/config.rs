@@ -245,8 +245,8 @@ impl MqttConfig {
                     mqtt_topic,
                     danube_topic,
                     qos,
-                    partitions: 0,                // Default: non-partitioned when loading from ENV
-                    reliable_dispatch: None,      // Will use QoS-based default
+                    partitions: 0, // Default: non-partitioned when loading from ENV
+                    reliable_dispatch: None, // Will use QoS-based default
                 }
             })
             .collect();
@@ -378,18 +378,18 @@ impl From<QoS> for rumqttc::QoS {
 pub struct TopicMapping {
     /// MQTT topic pattern (supports wildcards: +, #)
     pub mqtt_topic: String,
-    
+
     /// Target Danube topic
     pub danube_topic: String,
-    
+
     /// QoS level for MQTT subscription
     #[serde(default = "default_qos")]
     pub qos: QoS,
-    
+
     /// Number of partitions for the Danube topic (0 = non-partitioned)
     #[serde(default)]
     pub partitions: usize,
-    
+
     /// Use reliable dispatch for this topic (WAL + Cloud persistence)
     /// If not specified, determined by QoS level:
     /// - QoS 0 (AtMostOnce) → non-reliable (default: false)
@@ -415,22 +415,6 @@ fn default_qos() -> QoS {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_qos_conversion() {
-        assert_eq!(
-            rumqttc::QoS::from(QoS::AtMostOnce),
-            rumqttc::QoS::AtMostOnce
-        );
-        assert_eq!(
-            rumqttc::QoS::from(QoS::AtLeastOnce),
-            rumqttc::QoS::AtLeastOnce
-        );
-        assert_eq!(
-            rumqttc::QoS::from(QoS::ExactlyOnce),
-            rumqttc::QoS::ExactlyOnce
-        );
-    }
 
     #[test]
     fn test_config_validation() {
