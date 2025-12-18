@@ -10,24 +10,20 @@ This document describes common message handling patterns, data transformation st
 
 Danube uses a protocol buffer-based message format optimized for high-throughput streaming:
 
-```protobuf
-message StreamMessage {
-    uint64 request_id = 1;              // Request tracking ID
-    MsgID msg_id = 2;                   // Message identifier
-    bytes payload = 3;                  // Raw binary payload
-    uint64 publish_time = 4;            // Unix timestamp (microseconds)
-    string producer_name = 5;           // Producer identifier
-    string subscription_name = 6;        // Subscription routing
-    map<string, string> attributes = 7; // User-defined metadata
-}
+**StreamMessage fields:**
+- `request_id` - Request tracking ID
+- `msg_id` - Message identifier (contains producer_id, topic_name, broker_addr, topic_offset)
+- `payload` - Raw binary payload
+- `publish_time` - Unix timestamp (microseconds)
+- `producer_name` - Producer identifier
+- `subscription_name` - Subscription routing
+- `attributes` - User-defined metadata (map<string, string>)
 
-message MsgID {
-    uint64 producer_id = 1;    // Producer ID within topic
-    string topic_name = 2;     // Full topic name (e.g., /default/events)
-    string broker_addr = 3;    // Broker address for ack routing
-    uint64 topic_offset = 4;   // Monotonic offset within topic
-}
-```
+**MsgID fields:**
+- `producer_id` - Producer ID within topic
+- `topic_name` - Full topic name (e.g., /default/events)
+- `broker_addr` - Broker address for ack routing
+- `topic_offset` - Monotonic offset within topic
 
 ### Field Semantics
 
@@ -82,32 +78,11 @@ message MsgID {
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Example: HTTP Sink**
-```rust
-async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-    // 1. Extract payload
-    let payload = record.payload();
-    
-    // 2. Build HTTP request with metadata from attributes
-    let request = self.http_client
-        .post(&self.target_url)
-        .header("X-Danube-Topic", &record.message.msg_id.topic_name)
-        .header("X-Danube-Offset", record.message.msg_id.topic_offset)
-        .header("Content-Type", "application/json")
-        .body(payload.to_vec());
-    
-    // 3. Send request (retryable operation)
-    let response = request.send().await
-        .map_err(|e| ConnectorError::Retryable { ... })?;
-    
-    // 4. Check response
-    if response.status().is_success() {
-        Ok(()) // Runtime will ack automatically
-    } else {
-        Err(ConnectorError::Retryable { ... })
-    }
-}
-```
+**Processing Steps:**
+1. Extract payload from StreamMessage
+2. Build request with metadata from attributes (topic, offset, custom headers)
+3. Send request to external system (retryable operation)
+4. Check response and return success/error (runtime handles ack automatically)
 
 ### Pattern 2: Source Connector (External System → Danube)
 
@@ -142,49 +117,14 @@ async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Example: PostgreSQL CDC Source**
-```rust
-async fn poll(&mut self) -> ConnectorResult<Vec<SourceRecord>> {
-    // 1. Poll PostgreSQL replication stream
-    let changes = self.replication_stream
-        .next_batch(self.config.batch_size)
-        .await?;
-    
-    let mut records = Vec::new();
-    
-    // 2. Transform each change to SourceRecord
-    for change in changes {
-        let payload = serde_json::to_vec(&json!({
-            "op": change.operation, // INSERT, UPDATE, DELETE
-            "table": change.table_name,
-            "before": change.old_values,
-            "after": change.new_values,
-            "lsn": change.lsn,
-            "timestamp": change.timestamp,
-        }))?;
-        
-        let record = SourceRecord::new(&self.config.destination_topic, payload)
-            .with_attribute("source", "postgres")
-            .with_attribute("table", &change.table_name)
-            .with_attribute("op", &change.operation)
-            .with_key(&change.primary_key); // For partitioning
-        
-        records.push(record);
-    }
-    
-    Ok(records)
-}
-
-async fn commit(&mut self, offsets: Vec<Offset>) -> ConnectorResult<()> {
-    // 3. Commit LSN position in PostgreSQL
-    if let Some(last_offset) = offsets.last() {
-        self.replication_stream
-            .commit_lsn(last_offset.value)
-            .await?;
-    }
-    Ok(())
-}
-```
+**Processing Steps (PostgreSQL CDC example):**
+1. Poll PostgreSQL replication stream for new changes
+2. Transform each change (INSERT/UPDATE/DELETE) to SourceRecord with:
+   - Payload containing operation type, table name, before/after values, LSN, timestamp
+   - Attributes for source type, table name, operation type
+   - Routing key based on primary key (for partitioning)
+3. Publish batch to Danube topic
+4. Commit LSN position in PostgreSQL after successful publish
 
 ### Pattern 3: Bridge Connector (Bidirectional)
 
@@ -207,336 +147,186 @@ Bridge connectors facilitate migration or integration between messaging systems:
 
 ### 1. Pass-Through (Minimal Transformation)
 
-Best for: Binary protocols, already-serialized data
+**Best for:** Binary protocols, already-serialized data
 
-```rust
-async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-    // Direct write without transformation
-    self.external_system.write(record.payload()).await?;
-    Ok(())
-}
-```
+**Approach:** Direct write of payload to external system without transformation. Fastest option with minimal overhead.
 
 ### 2. JSON Transformation
 
-Best for: REST APIs, document databases, analytics systems
+**Best for:** REST APIs, document databases, analytics systems
 
-```rust
-async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-    // Deserialize Danube payload
-    let data: MyDataType = record.payload_json()?;
-    
-    // Enrich with Danube metadata
-    let enriched = EnrichedData {
-        data,
-        metadata: Metadata {
-            topic: record.message.msg_id.topic_name.clone(),
-            offset: record.message.msg_id.topic_offset,
-            timestamp: record.message.publish_time,
-            producer: record.message.producer_name.clone(),
-        },
-    };
-    
-    // Write to external system
-    self.external_system.insert(&enriched).await?;
-    Ok(())
-}
-```
+**Approach:**
+- Deserialize Danube payload from JSON
+- Enrich with Danube metadata (topic, offset, timestamp, producer)
+- Write enriched data to external system
+- Preserves message context for downstream processing
 
 ### 3. Schema-Based Transformation
 
-Best for: Strong typing requirements, Avro/Protobuf schemas
+**Best for:** Strong typing requirements, Avro/Protobuf schemas
 
-```rust
-async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-    // Get schema from attributes or Danube schema registry
-    let schema_id = record.message.attributes
-        .get("schema_id")
-        .ok_or(ConnectorError::InvalidData { ... })?;
-    
-    let schema = self.schema_registry.get_schema(schema_id).await?;
-    
-    // Deserialize using schema
-    let value = schema.deserialize(record.payload())?;
-    
-    // Transform to target system's schema
-    let target_value = self.transform_schema(value, &schema)?;
-    
-    // Write
-    self.external_system.write(&target_value).await?;
-    Ok(())
-}
-```
+**Approach:**
+- Extract schema ID from message attributes or schema registry
+- Deserialize payload using schema
+- Transform to target system's schema format
+- Write validated data to external system
+- Ensures type safety and compatibility
 
 ### 4. Batched Transformation with Aggregation
 
-Best for: Analytics databases (ClickHouse, Snowflake), time-series data
+**Best for:** Analytics databases (ClickHouse, Snowflake), time-series data
 
-```rust
-pub struct BatchingSinkConnector {
-    batch: Vec<TransformedRecord>,
-    batch_start: Instant,
-}
-
-async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-    // Transform single record
-    let transformed = self.transform_record(record)?;
-    self.batch.push(transformed);
-    
-    // Flush conditions
-    let should_flush = 
-        self.batch.len() >= self.config.batch_size ||
-        self.batch_start.elapsed() > self.config.batch_timeout;
-    
-    if should_flush {
-        self.flush_batch().await?;
-    }
-    
-    Ok(())
-}
-
-async fn flush_batch(&mut self) -> ConnectorResult<()> {
-    if self.batch.is_empty() {
-        return Ok(());
-    }
-    
-    // Bulk insert for better performance
-    self.external_system
-        .bulk_insert(&self.batch)
-        .await?;
-    
-    self.batch.clear();
-    self.batch_start = Instant::now();
-    
-    Ok(())
-}
-```
+**Approach:**
+- Accumulate records in memory batch
+- Transform each record as it arrives
+- Flush batch when size or time threshold is reached:
+  - Batch size limit (e.g., 1000 records)
+  - Time window (e.g., 5 seconds)
+- Perform bulk insert for better performance
+- Clear batch and reset timer after successful write
 
 ## Handling Message Attributes
 
-Danube's `attributes` field provides flexible metadata transport:
+Danube's `attributes` field provides flexible metadata transport as key-value pairs.
 
 ### Common Attribute Patterns
 
-```rust
-// Content-Type detection
-let content_type = record.message.attributes
-    .get("content-type")
-    .map(|s| s.as_str())
-    .unwrap_or("application/octet-stream");
+**Content-Type Detection:**
+- Read `content-type` attribute to determine payload format
+- Route to appropriate handler (JSON, XML, plain text, binary)
+- Default to binary/octet-stream if not specified
 
-match content_type {
-    "application/json" => self.handle_json(record).await?,
-    "application/xml" => self.handle_xml(record).await?,
-    "text/plain" => self.handle_text(record).await?,
-    _ => self.handle_binary(record).await?,
-}
+**Correlation ID for Distributed Tracing:**
+- Extract `correlation-id` from attributes
+- Add to tracing span for end-to-end request tracking
+- Propagate through downstream systems
 
-// Correlation ID for distributed tracing
-if let Some(correlation_id) = record.message.attributes.get("correlation-id") {
-    tracing::span!(
-        tracing::Level::INFO,
-        "process_message",
-        correlation_id = %correlation_id
-    );
-}
+**Custom Routing Keys:**
+- Use business identifiers (e.g., `customer-id`, `tenant-id`)
+- Route messages to tenant-specific pipelines
+- Enable multi-tenancy and isolation
 
-// Custom routing keys
-if let Some(customer_id) = record.message.attributes.get("customer-id") {
-    // Route to customer-specific processing
-    self.route_to_customer_pipeline(customer_id, record).await?;
-}
-
-// Schema evolution
-if let Some(schema_version) = record.message.attributes.get("schema-version") {
-    let transformer = self.get_transformer_for_version(schema_version)?;
-    transformer.transform(record).await?;
-}
-```
+**Schema Evolution:**
+- Store `schema-version` and `schema-id` in attributes
+- Select appropriate transformer based on version
+- Support backward/forward compatibility
 
 ### Adding Attributes in Source Connectors
 
-```rust
-async fn poll(&mut self) -> ConnectorResult<Vec<SourceRecord>> {
-    let records = self.fetch_from_external_system().await?;
-    
-    records.into_iter()
-        .map(|data| {
-            SourceRecord::new(&self.topic, data.payload)
-                // Standard attributes
-                .with_attribute("content-type", "application/json")
-                .with_attribute("source", "postgres-cdc")
-                
-                // Business context
-                .with_attribute("tenant-id", &data.tenant_id)
-                .with_attribute("region", &data.region)
-                
-                // Tracing
-                .with_attribute("trace-id", &Uuid::new_v4().to_string())
-                
-                // Schema information
-                .with_attribute("schema-version", "v2.1")
-                .with_attribute("schema-id", &data.schema_id)
-        })
-        .collect()
-}
-```
+**Standard Attributes:**
+- `content-type` - Payload format (application/json, text/plain, etc.)
+- `source` - Source system identifier (postgres-cdc, kafka, mqtt, etc.)
+
+**Business Context:**
+- `tenant-id` - Multi-tenancy identifier
+- `region` - Geographic or logical region
+- `customer-id` - Customer/account identifier
+
+**Tracing:**
+- `trace-id` - Distributed tracing identifier
+- `span-id` - Span within trace
+- `parent-id` - Parent span reference
+
+**Schema Information:**
+- `schema-version` - Schema version (e.g., "v2.1")
+- `schema-id` - Schema registry ID
+- `encoding` - Serialization format (avro, protobuf, json)
 
 ## Error Handling Patterns
 
 ### Pattern 1: Retry with Exponential Backoff
 
-For transient failures (network issues, rate limits):
+**Use case:** Transient failures (network issues, rate limits, temporary service unavailability)
 
-```rust
-async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-    match self.write_to_external(record).await {
-        Ok(_) => Ok(()),
-        Err(e) if e.is_timeout() || e.is_connection_error() => {
-            // Runtime will retry with exponential backoff
-            Err(ConnectorError::Retryable {
-                message: format!("Transient error: {}", e),
-                source: Some(Box::new(e)),
-            })
-        }
-        Err(e) => {
-            // Fatal error, don't retry
-            Err(ConnectorError::Fatal {
-                message: format!("Permanent error: {}", e),
-                source: Some(Box::new(e)),
-            })
-        }
-    }
-}
-```
+**Approach:**
+- Classify errors as retryable or fatal
+- Return `ConnectorError::Retryable` for temporary failures
+- Runtime automatically retries with exponential backoff
+- Return `ConnectorError::Fatal` for permanent errors (no retry)
+- Examples of retryable: timeouts, connection errors, HTTP 429/503
+- Examples of fatal: authentication errors, invalid data, HTTP 400/404
 
 ### Pattern 2: Dead Letter Queue
 
-For invalid messages that should be skipped:
+**Use case:** Invalid messages that should be skipped but preserved for inspection
 
-```rust
-async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-    match self.validate_and_transform(record.clone()) {
-        Ok(data) => {
-            self.external_system.write(&data).await?;
-            Ok(())
-        }
-        Err(e) if e.is_validation_error() => {
-            // Send to DLQ topic for later inspection
-            self.dlq_producer
-                .send_to_dlq(record, &e)
-                .await?;
-            
-            // Return Ok to ack the message
-            Ok(())
-        }
-        Err(e) => Err(e),
-    }
-}
-```
+**Approach:**
+- Validate and transform incoming message
+- On validation errors, send to DLQ topic
+- Return success to acknowledge original message
+- DLQ preserves error context for debugging
+- Prevents connector from getting stuck on bad data
+- Allows manual inspection and reprocessing
 
 ### Pattern 3: Partial Success in Batches
 
-For batch operations where some records succeed:
+**Use case:** Batch operations where some records succeed and others fail
 
-```rust
-async fn process_batch(&mut self, records: Vec<SinkRecord>) -> ConnectorResult<()> {
-    let results = self.external_system
-        .bulk_insert(&records)
-        .await?;
-    
-    // Check for partial failures
-    let failed_records: Vec<_> = results.iter()
-        .zip(records.iter())
-        .filter_map(|(result, record)| {
-            if let Err(e) = result {
-                Some((record.clone(), e))
-            } else {
-                None
-            }
-        })
-        .collect();
-    
-    if !failed_records.is_empty() {
-        // Retry failed records individually
-        for (record, error) in failed_records {
-            tracing::warn!("Retrying failed record: {}", error);
-            self.process(record).await?;
-        }
-    }
-    
-    Ok(())
-}
-```
+**Approach:**
+- Perform bulk insert/write operation
+- Check results for partial failures
+- Collect failed records with their errors
+- Retry failed records individually
+- Log warnings for retries
+- Ensures at-least-once delivery
+- Maintains throughput while handling failures
 
 ## Performance Optimization Patterns
 
 ### 1. Connection Pooling
 
-```rust
-pub struct OptimizedSinkConnector {
-    connection_pool: Pool<ConnectionManager>,
-}
+**Purpose:** Reuse connections to external systems, avoid overhead of creating new connections
 
-async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> {
-    self.connection_pool = Pool::builder()
-        .max_size(config.pool_size)
-        .connection_timeout(Duration::from_secs(5))
-        .build(ConnectionManager::new(config.connection_string))
-        .await?;
-    
-    Ok(())
-}
-```
+**Configuration:**
+- Set maximum pool size based on expected concurrency
+- Configure connection timeout (e.g., 5 seconds)
+- Use connection manager for health checks
+- Initialize pool during connector startup
+
+**Benefits:**
+- Reduces connection establishment overhead
+- Improves throughput for high-volume connectors
+- Better resource utilization
+- Handles connection failures gracefully
 
 ### 2. Async Batching with Timeout
 
-```rust
-use tokio::time::{timeout, Duration};
+**Purpose:** Accumulate records and flush based on size or time thresholds
 
-async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-    self.batch.push(record);
-    
-    // Non-blocking check for batch conditions
-    if self.should_flush() {
-        self.flush_batch().await?;
-    }
-    
-    Ok(())
-}
+**Implementation:**
+- Maintain in-memory batch of records
+- Non-blocking check for flush conditions
+- Background timer task for time-based flushing
+- Flush when batch size reaches limit OR timeout expires
 
-// Background flush task
-async fn start_flush_timer(&self) {
-    loop {
-        tokio::time::sleep(self.config.flush_interval).await;
-        if !self.batch.is_empty() {
-            self.flush_batch().await.ok();
-        }
-    }
-}
-```
+**Configuration:**
+- Batch size (e.g., 1000 records)
+- Flush interval (e.g., 5 seconds)
+
+**Benefits:**
+- Reduces number of external system calls
+- Balances latency vs throughput
+- Prevents unbounded memory growth
 
 ### 3. Parallel Processing
 
-For independent operations:
+**Purpose:** Process independent records concurrently for higher throughput
 
-```rust
-async fn process_batch(&mut self, records: Vec<SinkRecord>) -> ConnectorResult<()> {
-    // Process records in parallel
-    let futures: Vec<_> = records.into_iter()
-        .map(|record| self.process_single(record))
-        .collect();
-    
-    let results = futures::future::join_all(futures).await;
-    
-    // Check for any failures
-    for result in results {
-        result?;
-    }
-    
-    Ok(())
-}
-```
+**Approach:**
+- Map records to async futures
+- Execute futures in parallel using join_all
+- Collect and check results for failures
+- Fail fast if any record fails
+
+**Considerations:**
+- Only use for independent operations (no ordering requirements)
+- Manage resource consumption (limit concurrency)
+- Ensure thread-safety of shared state
+
+**Benefits:**
+- Higher throughput for I/O-bound operations
+- Better CPU utilization
+- Reduced end-to-end latency
 
 ## Best Practices Summary
 

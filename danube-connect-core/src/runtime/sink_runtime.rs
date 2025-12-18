@@ -318,6 +318,7 @@ impl<C: SinkConnector> SinkRuntime<C> {
         tracing_subscriber::registry()
             .with(env_filter)
             .with(tracing_subscriber::fmt::layer())
-            .init();
+            .try_init()
+            .ok(); // Ignore if already initialized
     }
 }

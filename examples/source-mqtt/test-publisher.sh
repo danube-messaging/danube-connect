@@ -25,11 +25,17 @@ while true; do
     count=$((count + 1))
     timestamp=$(date +%s)
     
-    # Temperature sensor
+    # Temperature sensor zone1 (goes to /iot/sensors_zone1 via sensors/+/zone1 pattern)
     temp=$((RANDOM % 30 + 10))
     docker run --rm --network "${NETWORK}" eclipse-mosquitto:2 \
         mosquitto_pub -h "${MQTT_CONTAINER}" -t "sensors/temp/zone1" \
         -m "{\"temperature\":${temp},\"unit\":\"celsius\",\"timestamp\":${timestamp}}"
+    
+    # Temperature sensor zone2 (goes to /iot/temperature via sensors/temp/# pattern)
+    temp2=$((RANDOM % 30 + 10))
+    docker run --rm --network "${NETWORK}" eclipse-mosquitto:2 \
+        mosquitto_pub -h "${MQTT_CONTAINER}" -t "sensors/temp/zone2" \
+        -m "{\"temperature\":${temp2},\"unit\":\"celsius\",\"timestamp\":${timestamp}}"
     
     # Humidity sensor
     humidity=$((RANDOM % 40 + 40))
@@ -50,7 +56,7 @@ while true; do
         mosquitto_pub -h "${MQTT_CONTAINER}" -t "devices/device001/telemetry" \
         -m "{\"battery\":${battery},\"signal\":${signal},\"timestamp\":${timestamp}}"
     
-    echo "[$(date +%T)] Published batch #${count}: temp=${temp}°C, humidity=${humidity}%, pressure=${pressure}hPa, battery=${battery}%"
+    echo "[$(date +%T)] Published batch #${count}: temp_z1=${temp}°C, temp_z2=${temp2}°C, humidity=${humidity}%, pressure=${pressure}hPa, battery=${battery}%"
     
     sleep 5
 done

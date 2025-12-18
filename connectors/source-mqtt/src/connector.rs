@@ -20,7 +20,18 @@ pub struct MqttSourceConnector {
 }
 
 impl MqttSourceConnector {
-    /// Create a new MQTT source connector
+    /// Create a new MQTT source connector with provided configuration
+    pub fn with_config(config: MqttConfig) -> Self {
+        Self {
+            config,
+            mqtt_client: None,
+            message_rx: None,
+            offset_counter: 0,
+        }
+    }
+
+    /// Create a new MQTT source connector with empty configuration
+    /// This is used for testing purposes
     pub fn new() -> Self {
         Self {
             config: MqttConfig {
@@ -213,8 +224,7 @@ impl SourceConnector for MqttSourceConnector {
     async fn initialize(&mut self, _config: ConnectorConfig) -> ConnectorResult<()> {
         info!("Initializing MQTT Source Connector");
 
-        // Load MQTT-specific configuration
-        self.config = MqttConfig::from_env()?;
+        // Validate configuration (already loaded in main)
         self.config.validate()?;
 
         info!(

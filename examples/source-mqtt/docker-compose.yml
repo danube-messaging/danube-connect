@@ -100,13 +100,15 @@ services:
       # Primary configuration source: TOML file
       CONFIG_FILE: "/etc/danube-connect/connector.toml"
       
-      # Environment variable overrides (optional)
-      # Uncomment to override specific settings from TOML
-      # DANUBE_SERVICE_URL: "http://danube-broker:6650"
-      # MQTT_BROKER_HOST: "mosquitto"
-      # MQTT_CLIENT_ID: "danube-connector-override"
+      # Optional: Environment variable overrides
+      # Uncomment to override specific TOML settings (useful for production)
+      # DANUBE_SERVICE_URL: "http://different-broker:6650"
+      # CONNECTOR_NAME: "mqtt-production"
+      # MQTT_BROKER_HOST: "production-mosquitto"
+      # MQTT_USERNAME: "prod_user"
+      # MQTT_PASSWORD: "secret123"
       
-      # Logging (can override TOML setting)
+      # Logging configuration
       RUST_LOG: "info,danube_source_mqtt=debug"
     networks:
       - danube-mqtt-network

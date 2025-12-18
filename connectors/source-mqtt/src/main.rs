@@ -13,8 +13,15 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> ConnectorResult<()> {
-    // Initialize logging
-    init_tracing();
+    // Initialize logging first
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info,danube_source_mqtt=debug"));
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer().with_target(true))
+        .try_init()
+        .ok(); // Ignore error if already initialized
 
     tracing::info!("Starting MQTT Source Connector");
     tracing::info!("Version: {}", env!("CARGO_PKG_VERSION"));
@@ -48,8 +55,8 @@ async fn main() -> ConnectorResult<()> {
         );
     }
 
-    // Create connector instance
-    let connector = MqttSourceConnector::new();
+    // Create connector instance with MQTT configuration
+    let connector = MqttSourceConnector::with_config(config.mqtt);
 
     // Create and run the runtime
     let mut runtime = SourceRuntime::new(connector, config.core).await?;
@@ -59,15 +66,4 @@ async fn main() -> ConnectorResult<()> {
 
     tracing::info!("MQTT Source Connector stopped");
     Ok(())
-}
-
-/// Initialize tracing/logging
-fn init_tracing() {
-    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info,danube_source_mqtt=debug"));
-
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(tracing_subscriber::fmt::layer().with_target(true))
-        .init();
 }

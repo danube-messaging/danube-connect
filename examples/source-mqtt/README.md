@@ -45,7 +45,7 @@ Your terminal
 
 ```bash
 cd examples/source-mqtt
-docker-compose up
+docker-compose up -d
 ```
 
 This starts:
@@ -70,9 +70,9 @@ docker logs -f mqtt-example-broker
 
 You should see messages flowing:
 ```
-[INFO] Received MQTT message: topic=sensors/temp/zone1, qos=1, size=67
-[DEBUG] Publishing to Danube topic: /iot/sensors
-[INFO] Message successfully published
+[DEBUG] Received MQTT message: topic=sensors/temp/zone1, qos=0, size=58
+[INFO] Polled 3 records
+[DEBUG] Committed 3 offsets
 ```
 
 ### 3. Publish Your Own Messages
@@ -112,22 +112,58 @@ To verify messages are reaching Danube, consume them using **danube-cli**.
 - GitHub Releases: https://github.com/danube-messaging/danube/releases
 - Documentation: https://danube-docs.dev-state.com/danube_clis/danube_cli/consumer/
 
-**Consume messages:**
+**Topic Mappings (MQTT → Danube):**
+
+The connector routes MQTT messages to Danube topics based on `connector.toml`:
+
+| MQTT Topic Pattern | Danube Topic | Example MQTT Topics |
+|-------------------|--------------|---------------------|
+| `sensors/+/zone1` | `/iot/sensors_zone1` | `sensors/temp/zone1`, `sensors/humidity/zone1` |
+| `devices/+/telemetry` | `/iot/device_telemetry` | `devices/device001/telemetry`, `devices/sensor42/telemetry` |
+| `sensors/temp/#` | `/iot/temperature` | `sensors/temp/zone2`, `sensors/temp/floor2` |
+| `debug/#` | `/iot/debug` | `debug/app`, `debug/system/error` |
+
+> **⚠️ Important:** The connector routes to the **first matching pattern**. For example:
+> - `sensors/temp/zone1` matches `sensors/+/zone1` first → goes to `/iot/sensors_zone1`
+> - `sensors/temp/zone2` doesn't match `sensors/+/zone1`, matches `sensors/temp/#` → goes to `/iot/temperature`
+
+**Consume messages from specific Danube topics:**
+
 ```bash
-# In a new terminal, consume from the Danube topic
-danube-cli consumer \
-  --server-addr http://localhost:6650 \
-  --topic /iot/sensors \
-  --subscription test-sub \
-  --subscription-type exclusive
+# Consume zone1 sensor data (temp, humidity, pressure from zone1)
+danube-cli consume \
+  --service-addr http://localhost:6650 \
+  --topic /iot/sensors_zone1 \
+  --subscription zone1-sub
+
+# Consume all device telemetry
+danube-cli consume \
+  --service-addr http://localhost:6650 \
+  --topic /iot/device_telemetry \
+  --subscription telemetry-sub
+
+# Consume temperature sensors only
+danube-cli consume \
+  --service-addr http://localhost:6650 \
+  --topic /iot/temperature \
+  --subscription temp-sub
+
+# Consume debug messages
+danube-cli consume \
+  -s http://localhost:6650 \
+  -t /iot/debug \
+  -m debug-sub
+
+# With exclusive subscription (only one consumer receives messages)
+danube-cli consume \
+  -s http://localhost:6650 \
+  -t /iot/temperature \
+  -m test-exclusive \
+  --sub-type exclusive
 
 # You should see MQTT messages appearing in real-time:
-# Topic: /iot/sensors
-# Payload: {"temperature": 23.5, "sensor_id": "zone1"}
-# Attributes: mqtt.topic=sensors/temp/zone1, mqtt.qos=1
+# Message received: {"temperature":22,"unit":"celsius","timestamp":1734539835}
 ```
-
-**Note:** Danube topics use the format `/namespace/topic` (exactly 2 segments).
 
 ### 6. Stop Everything
 
@@ -135,60 +171,7 @@ danube-cli consumer \
 docker-compose down
 ```
 
-## 📋 Configuration
-
-The example uses `connector.toml` with topic mappings:
-
-```toml
-[[mqtt.topic_mappings]]
-mqtt_topic = "sensors/#"           # MQTT wildcard pattern
-danube_topic = "/iot/sensors"      # Danube topic (format: /namespace/topic)
-qos = 1
-partitions = 0
-```
-
-## 🧪 Testing
-
-### Test 1: Basic Message Flow
-
-```bash
-# Publish to MQTT
-docker exec mqtt-example-broker mosquitto_pub -t sensors/temp -m '{"value": 23.5}'
-
-# Verify in connector logs
-docker logs mqtt-example-connector | grep "Received MQTT message"
-
-# Consume from Danube
-danube-cli consumer --server-addr http://localhost:6650 --topic /iot/sensors --subscription test
-```
-
-### Test 2: Wildcard Subscriptions
-
-The connector subscribes to:
-- `sensors/#` - All sensor topics (multi-level wildcard)
-- `devices/+/telemetry` - All device telemetry (single-level wildcard)
-
-```bash
-# Publish to different MQTT topics
-docker exec mqtt-example-broker mosquitto_pub -t sensors/temp -m "test1"
-docker exec mqtt-example-broker mosquitto_pub -t sensors/pressure -m "test2" 
-docker exec mqtt-example-broker mosquitto_pub -t devices/telemetry -m "test3"  # Won't match
-
-# All matching messages go to /iot/sensors in Danube
-danube-cli consumer --server-addr http://localhost:6650 --topic /iot/sensors --subscription test
-```
-
-### Test 3: Verify Metadata
-
-```bash
-# Publish with QoS
-docker exec mqtt-example-broker mosquitto_pub -t sensors/test -q 1 -m "data"
-
-# Consume and check attributes (mqtt.topic, mqtt.qos, source=mqtt)
-danube-cli consumer --server-addr http://localhost:6650 --topic /iot/sensors --subscription test --show-attributes
-```
-
-### Test 4: Automated Load Testing
+## Automated Load Testing
 
 Use `test-publisher.sh` to continuously publish sample messages:
 
@@ -204,8 +187,12 @@ chmod +x test-publisher.sh
 # [10:30:20] Published batch #2: temp=25°C, humidity=58%, pressure=1009hPa, battery=82%
 # ...
 
-# In another terminal, consume from Danube
-danube-cli consumer --server-addr http://localhost:6650 --topic /iot/sensors --subscription load-test
+# In another terminals, consume from Danube
+danube-cli consume   --service-addr http://localhost:6650   --topic /iot/temperature   --subscription telemetry-sub
+
+danube-cli consume   --service-addr http://localhost:6650   --topic /iot/sensors_zone1   --subscription telemetry-sub
+
+danube-cli consume   --service-addr http://localhost:6650   --topic /iot/device_telemetry   --subscription telemetry-sub
 
 # Press Ctrl+C to stop the publisher
 ```
