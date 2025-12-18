@@ -36,6 +36,7 @@ impl MqttSourceConnector {
                 topic_mappings: vec![],
                 clean_session: true,
                 include_metadata: true,
+                tcp_nodelay: true,
             },
             mqtt_client: None,
             message_rx: None,
@@ -238,7 +239,9 @@ impl SourceConnector for MqttSourceConnector {
 
         // Create MQTT client
         let mqtt_options = self.config.mqtt_options();
-        let (client, event_loop) = AsyncClient::new(mqtt_options, 100);
+        let (client, mut event_loop) = AsyncClient::new(mqtt_options, 100);
+
+        event_loop.network_options = self.config.network_options();
 
         // Subscribe to MQTT topics
         for mapping in &self.config.topic_mappings {

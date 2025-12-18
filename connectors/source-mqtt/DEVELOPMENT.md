@@ -132,93 +132,6 @@ cargo run
 mosquitto_pub -h localhost -t test/hello -m "world"
 ```
 
-### Debugging
-
-Enable verbose logging:
-
-```bash
-# All debug logs
-export RUST_LOG=debug
-
-# Connector-specific trace logs
-export RUST_LOG=danube_source_mqtt=trace
-
-# With timestamps
-export RUST_LOG=danube_source_mqtt=trace
-cargo run 2>&1 | ts '[%Y-%m-%d %H:%M:%S]'
-```
-
-## 🐛 Common Issues
-
-### "Channel closed" Error
-
-**Symptom**: `MQTT event loop channel closed` error
-
-**Cause**: Background task crashed
-
-**Fix**: Check event loop logs for panic:
-```bash
-export RUST_BACKTRACE=1
-cargo run
-```
-
-### Messages Not Received
-
-**Check list**:
-1. MQTT broker running? `nc -zv localhost 1883`
-2. Topic subscription successful? Check logs for "Subscribing to MQTT topic"
-3. Wildcard patterns correct? Test with `mosquitto_sub -t '#' -v`
-4. QoS level supported? Broker may downgrade QoS
-
-### High Memory Usage
-
-**Potential causes**:
-1. Channel buffer full - Increase buffer size or speed up poll()
-2. Message backlog - Check Danube publish latency
-3. Large messages - Reduce `max_packet_size`
-
-## 📊 Performance Tuning
-
-### Throughput Optimization
-
-```rust
-// Increase channel buffer
-let (message_tx, message_rx) = mpsc::channel(10000); // Default: 1000
-
-// Increase batch size in poll()
-if records.len() >= 1000 { break; } // Default: 100
-
-// Reduce poll timeout
-tokio::time::timeout(Duration::from_millis(10), ...) // Default: 100ms
-```
-
-### Latency Optimization
-
-- Use QoS 0 (if acceptable)
-- Reduce keep-alive interval
-- Minimize message transformation
-- Optimize Danube publish settings
-
-### Memory Optimization
-
-- Reduce channel buffer size
-- Limit max_packet_size
-- Use clean_session=true
-- Process messages immediately
-
-## 🚀 Building for Production
-
-### Optimized Build
-
-```bash
-# Release build with all optimizations
-cargo build --release
-
-# Check binary size
-ls -lh target/release/danube-source-mqtt
-
-# Strip debug symbols (done automatically via Cargo.toml)
-```
 
 ### Docker Build
 
@@ -257,15 +170,3 @@ cargo clippy --all-targets --all-features
 5. Update documentation
 6. Submit a pull request
 
-## 📚 References
-
-- [rumqttc Documentation](https://docs.rs/rumqttc/)
-- [MQTT 3.1.1 Specification](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/mqtt-v3.1.1.html)
-- [Danube Connect Core](../../danube-connect-core/)
-- [SourceConnector Trait](../../danube-connect-core/src/traits.rs)
-
-## 🆘 Getting Help
-
-- Check existing issues: https://github.com/danube-messaging/danube-connect/issues
-- Read the connector development guide: [../../info/connector-development-guide.md](../../info/connector-development-guide.md)
-- Review other connectors for patterns

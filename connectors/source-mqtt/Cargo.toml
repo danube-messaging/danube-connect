@@ -17,8 +17,8 @@ danube-connect-core = { path = "../../danube-connect-core" }
 danube-client = { workspace = true }
 danube-core = { workspace = true }
 
-# MQTT client
-rumqttc = "0.24"
+# MQTT client - v0.25.1 includes enhanced MQTT v5 support
+rumqttc = "0.25.1"
 
 # Async runtime
 tokio = { workspace = true }

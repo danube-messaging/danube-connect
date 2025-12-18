@@ -129,6 +129,11 @@ pub struct MqttConfig {
     /// Add MQTT metadata as message attributes
     #[serde(default = "default_true")]
     pub include_metadata: bool,
+
+    /// Enable TCP_NODELAY for reduced latency (disables Nagle's algorithm)
+    /// Beneficial for real-time messaging scenarios
+    #[serde(default = "default_true")]
+    pub tcp_nodelay: bool,
 }
 
 fn default_port() -> u16 {
@@ -211,6 +216,11 @@ impl MqttConfig {
             .and_then(|s| s.parse().ok())
             .unwrap_or(true);
 
+        let tcp_nodelay = std::env::var("MQTT_TCP_NODELAY")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(true);
+
         // Parse topic mappings
         let mqtt_topics = std::env::var("MQTT_TOPICS")
             .map_err(|_| danube_connect_core::ConnectorError::config("MQTT_TOPICS is required"))?;
@@ -270,6 +280,7 @@ impl MqttConfig {
             topic_mappings,
             clean_session,
             include_metadata,
+            tcp_nodelay,
         })
     }
 
@@ -350,10 +361,23 @@ impl MqttConfig {
 
         options
     }
+
+    /// Get network options for the MQTT connection
+    /// Configures TCP-level settings like TCP_NODELAY
+    pub fn network_options(&self) -> rumqttc::NetworkOptions {
+        let mut options = rumqttc::NetworkOptions::new();
+
+        // Enable TCP_NODELAY for reduced latency
+        // Disables Nagle's algorithm, beneficial for real-time messaging
+        options.set_tcp_nodelay(self.tcp_nodelay);
+
+        options
+    }
 }
 
 /// MQTT Quality of Service level
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)] // MQTT spec naming convention
 pub enum QoS {
     /// At most once delivery
     AtMostOnce = 0,
@@ -437,6 +461,7 @@ mod tests {
             }],
             clean_session: true,
             include_metadata: true,
+            tcp_nodelay: true,
         };
 
         assert!(config.validate().is_ok());
