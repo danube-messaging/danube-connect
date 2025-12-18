@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 
-[Documentation](./info/CONNECTORS_README.md) | [Architecture](./info/connector-core-architecture.md) | [Development Guide](./info/connector-development-guide.md)
+[Documentation](./info/CONNECTORS_README.md) | [Development Guide](./info/connector-development-guide.md) | [Message Patterns](./info/connector-message-patterns.md)
 
 </div>
 
@@ -83,8 +83,8 @@ cargo new --bin sink-mydb
 
 | Connector | Status | Description |
 |-----------|--------|-------------|
+| MQTT | ✅ Example | IoT device integration ([see example](./examples/source-mqtt/)) |
 | PostgreSQL CDC | 🚧 Planned | Change Data Capture |
-| MQTT | 🚧 Planned | IoT device integration |
 | File/Directory | 🚧 Planned | File system monitoring |
 | Kafka | 🚧 Planned | Kafka topic mirroring |
 
@@ -94,10 +94,10 @@ cargo new --bin sink-mydb
 Complete documentation is available in the `info/` directory:
 
 - **[Start Here: Documentation Index](./info/CONNECTORS_README.md)** - Overview and navigation
-- **[Architecture](./info/connector-core-architecture.md)** - Deep dive into the shared core
 - **[Development Guide](./info/connector-development-guide.md)** - Build your first connector
+- **[Configuration Guide](./info/UNIFIED_CONFIGURATION_GUIDE.md)** - Configuration patterns and best practices
 - **[Message Patterns](./info/connector-message-patterns.md)** - Message handling strategies
-- **[RPC Integration](./info/connector-rpc-integration.md)** - Technical RPC reference
+- **[Architecture Document](./info/connectors.md)** - Design philosophy and specifications
 
 ## Building from Source
 

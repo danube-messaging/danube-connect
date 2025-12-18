@@ -20,22 +20,20 @@ This directory contains the complete architectural design and documentation for 
 - Message format and field ownership
 - Trait-based connector design
 
-### 2. [connector-core-architecture.md](./connector-core-architecture.md) - Shared Core Deep Dive
-**For understanding the `danube-connect-core` library internals**
+### 2. [UNIFIED_CONFIGURATION_GUIDE.md](./UNIFIED_CONFIGURATION_GUIDE.md) - Configuration Patterns
+**For understanding the configuration architecture**
 
-- Layered architecture design
-- Core module breakdown (traits, runtime, client wrapper, message transformation)
-- Lifecycle management for sink and source connectors
-- Error handling and retry strategies
-- Configuration management patterns
-- Built-in observability and metrics
+- Single-file configuration pattern
+- TOML-first approach with ENV overrides
+- Core vs connector-specific settings
+- Multiple connector deployment patterns
+- Docker and Kubernetes examples
 
 **Key Topics:**
-- Runtime execution flow
-- Message transformation utilities
-- Integration with danube-client
-- Connection management and health checks
-- Performance optimization strategies
+- Unified config struct design
+- Environment variable overrides
+- Multi-connector deployments
+- Configuration best practices
 
 ### 3. [connector-development-guide.md](./connector-development-guide.md) - Developer Quickstart
 **Step-by-step guide for building your first connector**
@@ -71,23 +69,21 @@ This directory contains the complete architectural design and documentation for 
 - Attribute-based routing
 - Batch processing optimization
 
-### 5. [connector-rpc-integration.md](./connector-rpc-integration.md) - RPC Communication Details
-**Technical reference for RPC protocol and client integration**
+### 5. [connectors.md](./connectors.md) - Architecture & Design Document
+**High-level architecture and design philosophy**
 
-- RPC protocol stack overview
-- Discovery service (topic lookup, partitions)
-- Producer service (create producer, send message)
-- Consumer service (subscribe, receive messages, acknowledgment)
-- Health check service
-- Connection lifecycle and management
+- Executive summary and design philosophy
+- Repository structure and workspace layout
+- Priority connectors roadmap
+- Technical implementation specifications
+- Deployment strategies with Docker examples
 
 **Key Topics:**
-- gRPC service definitions
-- Message flow diagrams
-- Retry and backoff strategies
-- Connection pooling
-- Performance considerations
-- Debugging RPC issues
+- Connector worker pattern and process isolation
+- Shared core library responsibilities
+- Message format and field ownership
+- Trait-based connector design
+- Docker deployment patterns
 
 ## 🏗️ Architecture Overview
 
@@ -198,12 +194,12 @@ This directory contains the complete architectural design and documentation for 
 
 | Connector | Status | Description |
 |-----------|--------|-------------|
-| PostgreSQL CDC | Planned | Change Data Capture from Postgres |
-| MySQL CDC | Planned | Change Data Capture from MySQL |
-| MQTT | Planned | IoT device integration |
-| File/Directory | Planned | File system monitoring |
-| HTTP Polling | Planned | REST API polling |
-| Kafka | Planned | Kafka topic mirroring |
+| MQTT | ✅ Example Available | IoT device integration (see examples/source-mqtt) |
+| PostgreSQL CDC | 🚧 Planned | Change Data Capture from Postgres |
+| MySQL CDC | 🚧 Planned | Change Data Capture from MySQL |
+| File/Directory | 🚧 Planned | File system monitoring |
+| HTTP Polling | 🚧 Planned | REST API polling |
+| Kafka | 🚧 Planned | Kafka topic mirroring |
 
 ### Bridge Connectors (Bidirectional)
 
