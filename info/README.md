@@ -4,21 +4,21 @@ This directory contains the complete architectural design and documentation for 
 
 ## 📚 Documentation Index
 
-### 1. [connectors.md](./connectors.md) - Main Architecture Document
-**Start here for an overview of the entire Danube Connect ecosystem**
+### 1. [connectors.md](./connectors.md) - Architecture & Design Document
+**High-level architecture and design philosophy**
 
 - Executive summary and design philosophy
 - Repository structure and workspace layout
-- Priority connectors roadmap (HTTP, PostgreSQL CDC, ClickHouse, MQTT, Kafka)
-- Deployment strategies with Docker examples
+- Priority connectors roadmap
 - Technical implementation specifications
+- Deployment strategies with Docker examples
 
 **Key Topics:**
 - Connector worker pattern and process isolation
 - Shared core library responsibilities
-- RPC communication with Danube brokers
 - Message format and field ownership
 - Trait-based connector design
+- Docker deployment patterns
 
 ### 2. [UNIFIED_CONFIGURATION_GUIDE.md](./UNIFIED_CONFIGURATION_GUIDE.md) - Configuration Patterns
 **For understanding the configuration architecture**
@@ -69,21 +69,7 @@ This directory contains the complete architectural design and documentation for 
 - Attribute-based routing
 - Batch processing optimization
 
-### 5. [connectors.md](./connectors.md) - Architecture & Design Document
-**High-level architecture and design philosophy**
 
-- Executive summary and design philosophy
-- Repository structure and workspace layout
-- Priority connectors roadmap
-- Technical implementation specifications
-- Deployment strategies with Docker examples
-
-**Key Topics:**
-- Connector worker pattern and process isolation
-- Shared core library responsibilities
-- Message format and field ownership
-- Trait-based connector design
-- Docker deployment patterns
 
 ## 🏗️ Architecture Overview
 
@@ -177,37 +163,6 @@ This directory contains the complete architectural design and documentation for 
 - Horizontal scalability
 - Kubernetes-ready
 
-## 📊 Connector Types
-
-### Sink Connectors (Danube → External)
-
-| Connector | Status | Description |
-|-----------|--------|-------------|
-| HTTP/Webhook | Planned | Universal REST API integration |
-| ClickHouse | Planned | Real-time analytics ingestion |
-| PostgreSQL | Planned | Transactional database sink |
-| Elasticsearch | Planned | Search and analytics |
-| S3/Object Storage | Planned | Data lake integration |
-| Redis | Planned | Cache population |
-
-### Source Connectors (External → Danube)
-
-| Connector | Status | Description |
-|-----------|--------|-------------|
-| MQTT | ✅ Example Available | IoT device integration (see examples/source-mqtt) |
-| PostgreSQL CDC | 🚧 Planned | Change Data Capture from Postgres |
-| MySQL CDC | 🚧 Planned | Change Data Capture from MySQL |
-| File/Directory | 🚧 Planned | File system monitoring |
-| HTTP Polling | 🚧 Planned | REST API polling |
-| Kafka | 🚧 Planned | Kafka topic mirroring |
-
-### Bridge Connectors (Bidirectional)
-
-| Connector | Status | Description |
-|-----------|--------|-------------|
-| Kafka Bridge | Planned | Bidirectional Kafka integration |
-| RabbitMQ Bridge | Planned | AMQP protocol bridging |
-
 ## 🛠️ Development Workflow
 
 ```text
@@ -242,18 +197,6 @@ This directory contains the complete architectural design and documentation for 
    └── Performance optimization
 ```
 
-## 📈 Performance Benchmarks
-
-**Target Metrics** (to be validated):
-
-| Metric | Target | Notes |
-|--------|--------|-------|
-| Sink Throughput | 50K msgs/sec | With batching enabled |
-| Source Throughput | 30K msgs/sec | CDC workloads |
-| End-to-end Latency | < 10ms | Non-reliable mode |
-| End-to-end Latency | < 100ms | Reliable mode with persistence |
-| Memory Usage | < 100MB | Per connector instance |
-
 ## 🔧 Configuration Reference
 
 ### Common Environment Variables
@@ -285,34 +228,6 @@ LOG_LEVEL="info"
 RUST_LOG="info,danube_connect_core=debug"
 ```
 
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **Connection Refused**
-   - Verify Danube broker is running
-   - Check firewall and network settings
-   - Ensure correct service URL format
-
-2. **Topic Not Found**
-   - Create topic via Danube admin CLI
-   - Check topic name format (must start with /)
-
-3. **High Latency**
-   - Enable batching if not already
-   - Check network latency to broker
-   - Profile connector for bottlenecks
-
-4. **Message Loss**
-   - Ensure using `Reliable` dispatch strategy
-   - Check acknowledgment logic
-   - Verify external system writes are durable
-
-5. **Memory Issues**
-   - Reduce batch size
-   - Check for memory leaks in connector code
-   - Monitor with metrics
-
 ## 🤝 Contributing
 
 We welcome contributions! Areas where we need help:
@@ -330,40 +245,9 @@ We welcome contributions! Areas where we need help:
 - **Discord/Slack:** Join the Danube community (link TBD)
 - **Email:** support@danube-messaging.io (if applicable)
 
-## 🗺️ Roadmap
-
-### Phase 1: Foundation (Q1 2024)
-- ✅ Design architecture and documentation
-- ⏳ Implement `danube-connect-core` library
-- ⏳ Create connector project templates
-- ⏳ Setup CI/CD pipeline
-
-### Phase 2: Initial Connectors (Q2 2024)
-- ⏳ HTTP/Webhook Sink
-- ⏳ PostgreSQL CDC Source
-- ⏳ ClickHouse Sink
-
-### Phase 3: Ecosystem Growth (Q3-Q4 2024)
-- ⏳ MQTT Bridge
-- ⏳ Kafka Bridge
-- ⏳ Additional database connectors
-- ⏳ Monitoring dashboard
-
-### Phase 4: Enterprise Features (2025)
-- Schema registry integration
-- Exactly-once semantics
-- Dynamic configuration
-- Multi-tenancy support
-
 ## 📄 License
 
 Danube Connect follows the same license as Danube Messaging (check main repository).
-
-## 🙏 Acknowledgments
-
-- **Danube Team:** For building an amazing messaging platform
-- **Community Contributors:** For feedback and contributions
-- **Inspiration:** Apache Kafka Connect, Debezium, and other connector frameworks
 
 ---
 

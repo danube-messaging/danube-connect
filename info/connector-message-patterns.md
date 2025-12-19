@@ -185,53 +185,6 @@ Bridge connectors facilitate migration or integration between messaging systems:
 - Perform bulk insert for better performance
 - Clear batch and reset timer after successful write
 
-## Handling Message Attributes
-
-Danube's `attributes` field provides flexible metadata transport as key-value pairs.
-
-### Common Attribute Patterns
-
-**Content-Type Detection:**
-- Read `content-type` attribute to determine payload format
-- Route to appropriate handler (JSON, XML, plain text, binary)
-- Default to binary/octet-stream if not specified
-
-**Correlation ID for Distributed Tracing:**
-- Extract `correlation-id` from attributes
-- Add to tracing span for end-to-end request tracking
-- Propagate through downstream systems
-
-**Custom Routing Keys:**
-- Use business identifiers (e.g., `customer-id`, `tenant-id`)
-- Route messages to tenant-specific pipelines
-- Enable multi-tenancy and isolation
-
-**Schema Evolution:**
-- Store `schema-version` and `schema-id` in attributes
-- Select appropriate transformer based on version
-- Support backward/forward compatibility
-
-### Adding Attributes in Source Connectors
-
-**Standard Attributes:**
-- `content-type` - Payload format (application/json, text/plain, etc.)
-- `source` - Source system identifier (postgres-cdc, kafka, mqtt, etc.)
-
-**Business Context:**
-- `tenant-id` - Multi-tenancy identifier
-- `region` - Geographic or logical region
-- `customer-id` - Customer/account identifier
-
-**Tracing:**
-- `trace-id` - Distributed tracing identifier
-- `span-id` - Span within trace
-- `parent-id` - Parent span reference
-
-**Schema Information:**
-- `schema-version` - Schema version (e.g., "v2.1")
-- `schema-id` - Schema registry ID
-- `encoding` - Serialization format (avro, protobuf, json)
-
 ## Error Handling Patterns
 
 ### Pattern 1: Retry with Exponential Backoff
@@ -344,6 +297,4 @@ Danube's `attributes` field provides flexible metadata transport as key-value pa
 ## References
 
 - [Danube Message Architecture](https://danube-docs.dev-state.com/architecture/messages/)
-- [Connector Core Architecture](./connector-core-architecture.md)
 - [Connector Development Guide](./connector-development-guide.md)
-- [danube-client API Documentation](../danube-client/README.md)
