@@ -7,52 +7,38 @@ This directory contains the complete architectural design and documentation for 
 ### 1. [connectors.md](./connectors.md) - Architecture & Design Document
 **High-level architecture and design philosophy**
 
-- Executive summary and design philosophy
+- Summary and design philosophy
 - Repository structure and workspace layout
-- Priority connectors roadmap
 - Technical implementation specifications
-- Deployment strategies with Docker examples
+- Connector traits and message types
+- Runtime architecture (SinkRuntime, SourceRuntime)
+- Configuration management and deployment strategies
 
 **Key Topics:**
-- Connector worker pattern and process isolation
+- Process isolation and safety guarantees
 - Shared core library responsibilities
-- Message format and field ownership
 - Trait-based connector design
-- Docker deployment patterns
+- Multi-topic support
+- Hybrid configuration approach (env vars + TOML)
 
-### 2. [UNIFIED_CONFIGURATION_GUIDE.md](./UNIFIED_CONFIGURATION_GUIDE.md) - Configuration Patterns
-**For understanding the configuration architecture**
+### 2. [connector-development-guide.md](./connector-development-guide.md) - Developer Guide
+**Conceptual guide explaining what to implement and why**
 
-- Single-file configuration pattern
-- TOML-first approach with ENV overrides
-- Core vs connector-specific settings
-- Multiple connector deployment patterns
-- Docker and Kubernetes examples
-
-**Key Topics:**
-- Unified config struct design
-- Environment variable overrides
-- Multi-connector deployments
-- Configuration best practices
-
-### 3. [connector-development-guide.md](./connector-development-guide.md) - Developer Quickstart
-**Step-by-step guide for building your first connector**
-
-- Project setup and dependencies
-- Configuration management examples
-- Complete MongoDB sink connector implementation
-- Testing strategies (unit and integration)
-- Docker containerization
-- Source connector examples
+- Core concepts (connector types, architecture layers)
+- Project setup and minimal dependencies
+- Configuration architecture (unified pattern)
+- Trait method responsibilities and patterns
+- Error handling strategies
+- Testing and deployment approaches
 
 **Key Topics:**
-- Implementing `SinkConnector` trait
-- Implementing `SourceConnector` trait
-- Batching and buffering patterns
-- Error handling best practices
-- Building and running connectors
+- Understanding `SinkConnector` and `SourceConnector` traits
+- What each trait method does and when it's called
+- Common patterns (batching, multi-topic, error handling)
+- Best practices for reliability and performance
+- References to complete examples (source-mqtt)
 
-### 4. [connector-message-patterns.md](./connector-message-patterns.md) - Message Handling Guide
+### 3. [connector-message-patterns.md](./connector-message-patterns.md) - Message Handling Guide
 **Deep dive into message transformation and data flow**
 
 - Danube message structure and semantics
@@ -69,6 +55,20 @@ This directory contains the complete architectural design and documentation for 
 - Attribute-based routing
 - Batch processing optimization
 
+### 4. [unified_configuration_guide.md](./unified_configuration_guide.md) - Configuration Patterns
+**For understanding the configuration architecture**
+
+- Single-file configuration pattern
+- TOML-first approach with ENV overrides
+- Core vs connector-specific settings
+- Multiple connector deployment patterns
+- Docker and Kubernetes examples
+
+**Key Topics:**
+- Unified config struct design
+- Environment variable overrides
+- Multi-connector deployments
+- Configuration best practices
 
 
 ## 🏗️ Architecture Overview

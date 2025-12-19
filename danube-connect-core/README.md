@@ -181,126 +181,16 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-danube-connect-core = "0.2"
+danube-connect-core = "0.3"
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 ```
 
-### Create a Sink Connector
+### Building Connectors
 
-```rust
-use async_trait::async_trait;
-use danube_connect_core::{
-    ConnectorConfig, ConnectorResult, ConsumerConfig, SinkConnector, 
-    SinkRecord, SinkRuntime, SubscriptionType,
-};
-
-/// A simple sink connector that prints messages
-pub struct PrintSinkConnector {
-    message_count: u64,
-}
-
-#[async_trait]
-impl SinkConnector for PrintSinkConnector {
-    async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> {
-        println!("Initialized: {}", config.connector_name);
-        Ok(())
-    }
-
-    async fn consumer_configs(&self) -> ConnectorResult<Vec<ConsumerConfig>> {
-        // Specify which Danube topics to consume from
-        Ok(vec![ConsumerConfig {
-            topic: "/default/my-topic".to_string(),
-            consumer_name: "print-sink-consumer".to_string(),
-            subscription: "print-sink-sub".to_string(),
-            subscription_type: SubscriptionType::Exclusive,
-        }])
-    }
-
-    async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
-        self.message_count += 1;
-        println!(
-            "Message #{}: {} bytes from topic {}",
-            self.message_count,
-            record.payload_size(),
-            record.topic()
-        );
-        Ok(())
-    }
-
-    async fn shutdown(&mut self) -> ConnectorResult<()> {
-        println!("Processed {} messages", self.message_count);
-        Ok(())
-    }
-}
-
-#[tokio::main]
-async fn main() -> ConnectorResult<()> {
-    let config = ConnectorConfig::from_env()?;
-    let connector = PrintSinkConnector { message_count: 0 };
-    
-    let mut runtime = SinkRuntime::new(connector, config).await?;
-    runtime.run().await
-}
-```
-
-### Create a Source Connector
-
-```rust
-use async_trait::async_trait;
-use danube_connect_core::{
-    ConnectorConfig, ConnectorResult, ProducerConfig, SourceConnector, 
-    SourceRecord, SourceRuntime,
-};
-
-/// A simple source connector that generates test messages
-pub struct TestSourceConnector {
-    counter: u64,
-}
-
-#[async_trait]
-impl SourceConnector for TestSourceConnector {
-    async fn initialize(&mut self, config: ConnectorConfig) -> ConnectorResult<()> {
-        println!("Initialized: {}", config.connector_name);
-        Ok(())
-    }
-
-    async fn poll(&mut self) -> ConnectorResult<Vec<SourceRecord>> {
-        if self.counter >= 100 {
-            return Ok(vec![]);
-        }
-
-        self.counter += 1;
-        
-        // Specify producer config per record
-        let producer_config = ProducerConfig {
-            topic: "/default/test".to_string(),
-            partitions: 0,  // Non-partitioned
-            reliable_dispatch: false,
-        };
-        
-        let record = SourceRecord::from_string(
-            format!("Message #{}", self.counter),
-        ).with_producer_config(producer_config);
-
-        Ok(vec![record])
-    }
-
-    async fn shutdown(&mut self) -> ConnectorResult<()> {
-        println!("Generated {} messages", self.counter);
-        Ok(())
-    }
-}
-
-#[tokio::main]
-async fn main() -> ConnectorResult<()> {
-    let config = ConnectorConfig::from_env()?;
-    let connector = TestSourceConnector { counter: 0 };
-    
-    let mut runtime = SourceRuntime::new(connector, config).await?;
-    runtime.run().await
-}
-```
+**For detailed implementation guides, see:**
+- **[Connector Development Guide](../info/connector-development-guide.md)** - Comprehensive guide on implementing sink and source connectors
+- **[Complete MQTT Example](../connectors/source-mqtt)** - Full reference implementation with all patterns
 
 ## Examples
 
@@ -337,14 +227,20 @@ cargo run --bin my-connector
 curl http://localhost:9040/metrics
 ```
 
-See the [Testing Guide](../docker/TESTING.md) for detailed testing patterns.
+For complete testing examples, see [examples/source-mqtt](../examples/source-mqtt).
 
 ## Documentation
 
-- **[Connector Development Guide](../info/connector-development-guide.md)** - Step-by-step guide for building connectors
-- **[Architecture Overview](../info/connector-core-architecture.md)** - Deep dive into the SDK design
-- **[Message Patterns](../info/connector-message-patterns.md)** - Common message handling patterns
-- **[Docker Setup](../docker/README.md)** - Running the test cluster
+### Connector Documentation
+- **[Connector Development Guide](../info/connector-development-guide.md)** - Conceptual guide for implementing connectors
+- **[Architecture Overview](../info/connectors.md)** - Connector framework architecture and design
+- **[Message Patterns](../info/connector-message-patterns.md)** - Message transformation and data flow patterns
+- **[Configuration Guide](../info/unified_configuration_guide.md)** - Configuration architecture and best practices
+
+### Examples
+- **[MQTT Source Connector](../connectors/source-mqtt)** - Complete reference implementation
+- **[MQTT Example Setup](../examples/source-mqtt)** - Full deployment with Docker Compose
+- **[Docker Test Cluster](../docker)** - Local Danube cluster for testing
 
 ## Performance
 
