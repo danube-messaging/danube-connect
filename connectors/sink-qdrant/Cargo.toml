@@ -1,6 +1,6 @@
 [package]
 name = "danube-sink-qdrant"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 authors = ["Dan Rusei <dan.rusei@gmail.com>"]
 description = "Qdrant sink connector for Danube Connect - streaming vector embeddings to Qdrant"
@@ -12,15 +12,15 @@ repository = "https://github.com/danube-messaging/danube-connect"
 danube-connect-core = { path = "../../danube-connect-core" }
 
 # Qdrant client
-qdrant-client = "1.16.0"
+qdrant-client = "1.14.1"
 
 # Async runtime
-tokio = { version = "1", features = ["full"] }
-async-trait = "0.1"
+tokio = { workspace = true }
+async-trait = { workspace = true }
 
 # Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
 toml = "0.8"
 
 # Logging
@@ -31,7 +31,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 sha2 = "0.10"  # For point ID hashing
 
 [dev-dependencies]
-danube-core = "0.5.2"  # For tests
+danube-core = { workspace = true }  # For tests
 
 [[bin]]
 name = "danube-sink-qdrant"

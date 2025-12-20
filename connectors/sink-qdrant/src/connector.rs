@@ -6,9 +6,9 @@ use async_trait::async_trait;
 use danube_connect_core::{
     ConnectorConfig, ConnectorError, ConnectorResult, ConsumerConfig, SinkConnector, SinkRecord,
 };
+use qdrant_client::qdrant::PointStruct;
 use qdrant_client::qdrant::{CreateCollectionBuilder, UpsertPointsBuilder};
 use qdrant_client::Qdrant;
-use qdrant_client::qdrant::PointStruct;
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::{debug, info, warn};
@@ -37,7 +37,7 @@ impl CollectionContext {
     fn new(mapping: TopicMapping, global_batch_size: usize, global_batch_timeout: u64) -> Self {
         let effective_batch_size = mapping.effective_batch_size(global_batch_size);
         let effective_batch_timeout_ms = mapping.effective_batch_timeout(global_batch_timeout);
-        
+
         Self {
             mapping,
             batch_buffer: Vec::with_capacity(effective_batch_size),
@@ -138,7 +138,10 @@ impl QdrantSinkConnector {
 
         info!(
             "Successfully inserted {} points to '{}' (total: {}, batches: {})",
-            count, context.mapping.collection_name, context.points_inserted, context.batches_flushed
+            count,
+            context.mapping.collection_name,
+            context.points_inserted,
+            context.batches_flushed
         );
 
         Ok(())
@@ -191,9 +194,8 @@ impl QdrantSinkConnector {
 
         client
             .create_collection(
-                CreateCollectionBuilder::new(&mapping.collection_name).vectors_config(
-                    vectors_config,
-                ),
+                CreateCollectionBuilder::new(&mapping.collection_name)
+                    .vectors_config(vectors_config),
             )
             .await
             .map_err(|e| {
@@ -203,7 +205,10 @@ impl QdrantSinkConnector {
                 ))
             })?;
 
-        info!("Collection '{}' created successfully", mapping.collection_name);
+        info!(
+            "Collection '{}' created successfully",
+            mapping.collection_name
+        );
 
         Ok(())
     }
@@ -339,7 +344,7 @@ impl SinkConnector for QdrantSinkConnector {
 
         // Flush any remaining points in all collections
         let topics: Vec<String> = self.collections.keys().cloned().collect();
-        
+
         for topic in topics {
             if let Some(context) = self.collections.get(&topic) {
                 if !context.batch_buffer.is_empty() {
@@ -357,7 +362,7 @@ impl SinkConnector for QdrantSinkConnector {
         // Print statistics for all collections
         let mut total_points = 0u64;
         let mut total_batches = 0u64;
-        
+
         for (topic, context) in &self.collections {
             info!(
                 "Collection '{}' (topic: {}): {} points inserted, {} batches flushed",
@@ -397,8 +402,9 @@ impl SinkConnector for QdrantSinkConnector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
+    use crate::config::Distance;
     use danube_connect_core::SubscriptionType;
+    use std::collections::HashMap;
 
     #[test]
     fn test_connector_creation() {
@@ -423,17 +429,23 @@ mod tests {
         };
 
         let mut context = CollectionContext::new(mapping, 100, 1000);
-        
+
         assert!(!context.should_flush()); // Empty buffer
 
         // Add points up to batch size
         let empty_payload: HashMap<String, qdrant_client::qdrant::Value> = HashMap::new();
 
-        context.batch_buffer.push(PointStruct::new(1, vec![0.1, 0.2], empty_payload.clone()));
-        context.batch_buffer.push(PointStruct::new(2, vec![0.3, 0.4], empty_payload.clone()));
+        context
+            .batch_buffer
+            .push(PointStruct::new(1, vec![0.1, 0.2], empty_payload.clone()));
+        context
+            .batch_buffer
+            .push(PointStruct::new(2, vec![0.3, 0.4], empty_payload.clone()));
         assert!(!context.should_flush()); // Not full yet
 
-        context.batch_buffer.push(PointStruct::new(3, vec![0.5, 0.6], empty_payload));
+        context
+            .batch_buffer
+            .push(PointStruct::new(3, vec![0.5, 0.6], empty_payload));
         assert!(context.should_flush()); // Now should flush
     }
 

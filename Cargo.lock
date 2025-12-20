@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "danube-sink-qdrant"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "async-trait",
  "danube-connect-core",
@@ -389,9 +389,7 @@ version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
- "danube-client",
  "danube-connect-core",
- "danube-core",
  "mockall",
  "rumqttc",
  "serde",

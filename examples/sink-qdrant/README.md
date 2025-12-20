@@ -42,7 +42,7 @@ This example shows how to:
 ### 1. Start the Stack
 
 ```bash
-# Start all services (Danube, Qdrant, Connector)
+# Start all services (ETCD, Danube, Topic Init, Qdrant, Connector)
 docker-compose up -d
 
 # Check logs
@@ -51,6 +51,13 @@ docker-compose logs -f qdrant-sink
 # Verify all services are healthy
 docker-compose ps
 ```
+
+**Startup Sequence:**
+1. **ETCD** starts and becomes healthy
+2. **Danube Broker** starts (depends on ETCD)
+3. **Topic Init** creates `/default/vectors` topic (depends on Danube)
+4. **Qdrant** starts independently and becomes healthy
+5. **Qdrant Sink** starts (depends on topic creation + Qdrant health)
 
 Services:
 - **ETCD**: `http://localhost:2379` (Danube metadata storage)

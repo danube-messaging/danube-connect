@@ -1,21 +1,37 @@
-# Multi-stage build for Qdrant Sink Connector
-FROM rust:1.75 as builder
+# Build stage
+FROM rust:1.83 as builder
+
+# Install protobuf compiler (required for danube-core gRPC compilation)
+RUN apt-get update && apt-get install -y \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
 
-# Copy workspace files
-COPY Cargo.toml ./
+# Copy workspace configuration (single source of truth)
+COPY Cargo.toml Cargo.lock ./
+
+# Copy only the dependencies we need to build
 COPY danube-connect-core ./danube-connect-core
 COPY connectors/sink-qdrant ./connectors/sink-qdrant
 
-# Build the connector in release mode
-WORKDIR /usr/src/app/connectors/sink-qdrant
-RUN cargo build --release
+# Filter workspace members to only include what we copied
+# This keeps [workspace.dependencies] intact (single source of truth)
+# but removes references to missing connectors
+RUN sed -i '/members = \[/,/\]/c\
+members = [\
+    "danube-connect-core",\
+    "connectors/sink-qdrant",\
+]' Cargo.toml
 
-# Runtime stage - minimal image
+# Build the connector
+WORKDIR /usr/src/app
+RUN cargo build --package danube-sink-qdrant --release
+
+# Runtime stage
 FROM debian:bookworm-slim
 
-# Install CA certificates for HTTPS connections
+# Install CA certificates for HTTPS/TLS connections
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -25,14 +41,14 @@ COPY --from=builder \
     /usr/src/app/target/release/danube-sink-qdrant \
     /usr/local/bin/danube-sink-qdrant
 
-# Run as non-root user for security
+# Create non-root user
 RUN useradd -m -u 1000 danube && \
     chown -R danube:danube /usr/local/bin/danube-sink-qdrant
 
 USER danube
-WORKDIR /home/danube
 
-# Expose metrics port
-EXPOSE 9090
+# Set environment defaults
+ENV RUST_LOG=info
+ENV LOG_LEVEL=info
 
 ENTRYPOINT ["danube-sink-qdrant"]

@@ -13,9 +13,6 @@ path = "src/main.rs"
 [dependencies]
 # Core connector framework
 danube-connect-core = { path = "../../danube-connect-core" }
-# Danube dependencies
-danube-client = { workspace = true }
-danube-core = { workspace = true }
 
 # MQTT client - v0.25.1 includes enhanced MQTT v5 support
 rumqttc = "0.25.1"

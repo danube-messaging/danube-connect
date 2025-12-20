@@ -8,16 +8,25 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /usr/src/app
 
-# Copy workspace configuration
-COPY Cargo.toml ./
-COPY danube-connect-core ./danube-connect-core
+# Copy workspace configuration (single source of truth)
+COPY Cargo.toml Cargo.lock ./
 
-# Copy connector source
+# Copy only the dependencies we need to build
+COPY danube-connect-core ./danube-connect-core
 COPY connectors/source-mqtt ./connectors/source-mqtt
 
+# Filter workspace members to only include what we copied
+# This keeps [workspace.dependencies] intact (single source of truth)
+# but removes references to missing connectors
+RUN sed -i '/members = \[/,/\]/c\
+members = [\
+    "danube-connect-core",\
+    "connectors/source-mqtt",\
+]' Cargo.toml
+
 # Build the connector
-WORKDIR /usr/src/app/connectors/source-mqtt
-RUN cargo build --release
+WORKDIR /usr/src/app
+RUN cargo build --package danube-source-mqtt --release
 
 # Runtime stage
 FROM debian:bookworm-slim
