@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "danube-connect-core",
     "connectors/source-mqtt",
+    "connectors/sink-qdrant",
 ]
 
 [workspace.dependencies]

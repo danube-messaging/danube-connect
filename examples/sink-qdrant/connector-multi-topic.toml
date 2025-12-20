@@ -1,0 +1,84 @@
+# Qdrant Sink Connector Configuration - Multi-Topic Example
+#
+# This example shows how to route multiple Danube topics to different Qdrant collections.
+# Perfect for scenarios where you have embeddings from different sources (chat, docs, wiki)
+# that require different collection configurations.
+
+# Core Danube Connect Configuration
+connector_name = "qdrant-sink-multi"
+danube_service_url = "http://localhost:6650"
+
+# Retry Configuration
+[retry]
+max_retries = 3
+retry_backoff_ms = 1000
+max_backoff_ms = 30000
+
+# Processing Settings
+[processing]
+batch_size = 100
+batch_timeout_ms = 1000
+poll_interval_ms = 100
+metrics_port = 9090
+log_level = "info"
+
+# Qdrant Configuration
+[qdrant]
+# Qdrant server URL (gRPC endpoint)
+url = "http://localhost:6334"
+
+# Optional API key for Qdrant Cloud
+# api_key = "your-api-key-here"
+
+# Global batch settings (can be overridden per topic)
+batch_size = 50
+batch_timeout_ms = 1000
+timeout_secs = 30
+
+# Topic Mapping 1: Chat embeddings → chat_vectors collection
+[[qdrant.topic_mappings]]
+topic = "/default/chat_embeddings"
+subscription = "qdrant-chat-sub"
+subscription_type = "Exclusive"
+collection_name = "chat_vectors"
+vector_dimension = 384  # sentence-transformers/all-MiniLM-L6-v2
+distance = "Cosine"
+auto_create_collection = true
+include_danube_metadata = true
+# Optional: Override global batch settings for this topic
+# batch_size = 100
+# batch_timeout_ms = 500
+
+# Topic Mapping 2: Wiki embeddings → wiki_knowledge collection
+[[qdrant.topic_mappings]]
+topic = "/default/wiki_embeddings"
+subscription = "qdrant-wiki-sub"
+subscription_type = "Exclusive"
+collection_name = "wiki_knowledge"
+vector_dimension = 768  # sentence-transformers/all-mpnet-base-v2
+distance = "Cosine"
+auto_create_collection = true
+include_danube_metadata = true
+
+# Topic Mapping 3: Code embeddings → code_search collection
+[[qdrant.topic_mappings]]
+topic = "/default/code_embeddings"
+subscription = "qdrant-code-sub"
+subscription_type = "Exclusive"
+collection_name = "code_search"
+vector_dimension = 1536  # OpenAI text-embedding-ada-002
+distance = "Cosine"
+auto_create_collection = true
+include_danube_metadata = false  # Less metadata for code snippets
+batch_size = 100  # Larger batches for code
+
+# Topic Mapping 4: Image embeddings → visual_search collection
+[[qdrant.topic_mappings]]
+topic = "/media/image_embeddings"
+subscription = "qdrant-image-sub"
+subscription_type = "Exclusive"
+collection_name = "visual_search"
+vector_dimension = 512  # CLIP or similar visual embedding model
+distance = "Cosine"
+auto_create_collection = true
+include_danube_metadata = true
