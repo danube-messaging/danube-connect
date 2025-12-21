@@ -7,8 +7,24 @@ set -e
 DANUBE_URL=${DANUBE_URL:-http://localhost:6650}
 TOPIC=${TOPIC:-/default/vectors}
 EMBEDDINGS_FILE=${EMBEDDINGS_FILE:-embeddings.jsonl}
-DANUBE_CLI=${DANUBE_CLI:-danube-cli}
 INTERVAL=${INTERVAL:-500}
+
+# Auto-detect danube-cli (check local directory first, then PATH)
+if [ -z "${DANUBE_CLI}" ]; then
+    if [ -f "./danube-cli-linux" ]; then
+        DANUBE_CLI="./danube-cli-linux"
+    elif [ -f "./danube-cli-macos" ]; then
+        DANUBE_CLI="./danube-cli-macos"
+    elif [ -f "./danube-cli-windows.exe" ]; then
+        DANUBE_CLI="./danube-cli-windows.exe"
+    elif [ -f "./danube-cli" ]; then
+        DANUBE_CLI="./danube-cli"
+    elif command -v danube-cli &> /dev/null; then
+        DANUBE_CLI="danube-cli"
+    else
+        DANUBE_CLI="danube-cli"  # Will fail later with helpful message
+    fi
+fi
 
 echo "=" | tr '=' '\n' | head -c 60 && echo
 echo "📤 Danube Producer for Qdrant Sink Connector"
@@ -30,37 +46,51 @@ if [ ! -f "${EMBEDDINGS_FILE}" ]; then
 fi
 
 # Check if danube-cli is available
-if ! command -v ${DANUBE_CLI} &> /dev/null; then
+if ! command -v ${DANUBE_CLI} &> /dev/null && [ ! -f "${DANUBE_CLI}" ]; then
     echo "❌ Error: danube-cli not found"
     echo ""
-    echo "💡 Build danube-cli:"
-    echo "   git clone https://github.com/danrusei/danube.git"
-    echo "   cd danube/danube-cli"
-    echo "   cargo build --release"
-    echo "   export PATH=\$PATH:\$(pwd)/target/release"
+    echo "💡 Download danube-cli from:"
+    echo "   https://github.com/danube-messaging/danube/releases"
     echo ""
-    echo "Or specify path:"
+    echo "   # Linux"
+    echo "   wget https://github.com/danube-messaging/danube/releases/download/v0.5.2/danube-cli-linux"
+    echo "   chmod +x danube-cli-linux"
+    echo ""
+    echo "   # macOS"
+    echo "   wget https://github.com/danube-messaging/danube/releases/download/v0.5.2/danube-cli-macos"
+    echo "   chmod +x danube-cli-macos"
+    echo ""
+    echo "Or specify custom path:"
     echo "   DANUBE_CLI=/path/to/danube-cli ./test_producer.sh"
     echo ""
     exit 1
 fi
+
+echo "Using danube-cli: ${DANUBE_CLI}"
+echo ""
 
 # Count total messages
 total=$(wc -l < "${EMBEDDINGS_FILE}")
 echo "📊 Found ${total} messages in ${EMBEDDINGS_FILE}"
 echo ""
 
-# Check Danube connectivity
+# Check Danube connectivity (TCP port check)
 echo "🔍 Checking Danube connectivity..."
-if ! curl -s -f "${DANUBE_URL}/health" > /dev/null 2>&1; then
+DANUBE_HOST=$(echo "${DANUBE_URL}" | sed -E 's|.*://([^:/]+).*|\1|')
+DANUBE_PORT=$(echo "${DANUBE_URL}" | sed -E 's|.*:([0-9]+).*|\1|')
+
+if ! timeout 2 bash -c "cat < /dev/null > /dev/tcp/${DANUBE_HOST}/${DANUBE_PORT}" 2>/dev/null; then
     echo "⚠️  Warning: Cannot reach Danube at ${DANUBE_URL}"
-    echo "   Make sure Danube broker is running"
+    echo "   Make sure Danube broker is running:"
+    echo "   docker-compose ps danube-broker"
     echo ""
     read -p "Continue anyway? (y/N) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1
     fi
+else
+    echo "✅ Danube broker is reachable"
 fi
 
 echo "✅ Ready to send messages"
@@ -80,13 +110,13 @@ while IFS= read -r message; do
     text=$(echo "$message" | jq -r '.payload.text // "N/A"' 2>/dev/null || echo "N/A")
     text_short="${text:0:50}"
     
-    # Send message using danube-cli
-    if echo "$message" | ${DANUBE_CLI} produce \
+    # Send message using danube-cli (use string schema, connector will parse JSON)
+    if ${DANUBE_CLI} produce \
         --service-addr "${DANUBE_URL}" \
         --topic "${TOPIC}" \
-        --schema json \
         --message "$message" \
         --interval ${INTERVAL} \
+        --reliable \
         > /dev/null 2>&1; then
         success=$((success + 1))
         echo "✅ [${count}/${total}] Sent: ${text_short}..."

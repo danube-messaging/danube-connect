@@ -83,14 +83,31 @@ pip install -r requirements.txt
 
 **danube-cli** (for sending messages to Danube):
 
-```bash
-# Clone and build danube-cli
-git clone https://github.com/danrusei/danube.git
-cd danube/danube-cli
-cargo build --release
+Download the latest release for your system from [Danube Releases](https://github.com/danube-messaging/danube/releases):
 
-# Add to PATH or use full path
-export PATH=$PATH:$(pwd)/target/release
+```bash
+# Linux
+wget https://github.com/danube-messaging/danube/releases/download/v0.5.2/danube-cli-linux
+chmod +x danube-cli-linux
+
+# macOS (Apple Silicon)
+wget https://github.com/danube-messaging/danube/releases/download/v0.5.2/danube-cli-macos
+chmod +x danube-cli-macos
+
+# Windows
+# Download danube-cli-windows.exe from the releases page
+```
+
+**Note:** The `test_producer.sh` script automatically detects `danube-cli-linux`, `danube-cli-macos`, or `danube-cli` in the current directory, so you don't need to install it system-wide.
+
+**Available platforms:**
+- Linux: `danube-cli-linux`
+- macOS (Apple Silicon): `danube-cli-macos`
+- Windows: `danube-cli-windows.exe`
+
+Or use the Docker image:
+```bash
+docker pull ghcr.io/danube-messaging/danube-cli:v0.5.2
 ```
 
 ### 3. Generate and Send Test Data

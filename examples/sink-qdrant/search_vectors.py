@@ -45,12 +45,12 @@ def search_similar(
     
     # Search Qdrant
     print(f"🔎 Searching collection '{collection_name}'...")
-    results = client.search(
+    results = client.query_points(
         collection_name=collection_name,
-        query_vector=query_vector,
+        query=query_vector,
         limit=limit,
         with_payload=True
-    )
+    ).points
     
     return results
 
