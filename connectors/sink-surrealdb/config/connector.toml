@@ -73,6 +73,11 @@ table_name = "events"
 # This determines how the connector interprets and inserts the payload
 schema_type = "Json"
 
+# Storage mode: "Document" (default) or "TimeSeries"
+# Document: Regular document storage
+# TimeSeries: Adds _timestamp field using Danube publish_time
+storage_mode = "Document"
+
 # Include Danube metadata in each record (default: true)
 # Adds _danube_metadata field with topic, offset, timestamp, message_id
 include_danube_metadata = true
@@ -82,3 +87,18 @@ include_danube_metadata = true
 
 # Optional: Override flush interval for this specific topic
 # flush_interval_ms = 500
+
+#######################
+# Example: Time-Series Data
+#######################
+# Uncomment to add a time-series topic mapping
+
+# [[surrealdb.topic_mappings]]
+# topic = "/iot/temperature"
+# subscription = "surrealdb-iot"
+# table_name = "temperature_readings"
+# schema_type = "Json"
+# storage_mode = "TimeSeries"  # Uses Danube publish_time as timestamp
+# include_danube_metadata = false
+# batch_size = 500
+# flush_interval_ms = 2000

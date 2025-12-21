@@ -6,10 +6,17 @@ Stream events from Danube into [SurrealDB](https://surrealdb.com/) - the ultimat
 
 The SurrealDB Sink Connector enables real-time data streaming from Danube topics to SurrealDB tables. Built entirely in Rust for maximum performance and zero JVM overhead.
 
+**Supported Storage Modes:**
+- **Document** - Regular document storage (default)
+- **TimeSeries** - Time-series data with automatic timestamp handling
+
+> **Note:** Graph storage is not currently supported. For graph relationships, consider using SurrealDB's `RELATE` statements in your application layer.
+
 ### Key Features
 
-- ✅ **Multi-Model Support** - Store events as documents, graphs, or relational data
+- ✅ **Multi-Model Support** - Store events as documents or time-series data
 - ✅ **Schema-Aware** - Supports JSON, String, Int64, and Bytes schema types
+- ✅ **Time-Series Optimization** - Automatic timestamp handling for temporal queries
 - ✅ **Multi-Topic Routing** - Route different topics to different tables with independent configurations
 - ✅ **Configurable Batching** - Optimize throughput with per-topic batch sizes and flush intervals
 - ✅ **Custom Record IDs** - Use message attributes for idempotent inserts or auto-generate
@@ -21,8 +28,8 @@ The SurrealDB Sink Connector enables real-time data streaming from Danube topics
 
 - **Real-Time Analytics** - Stream user events, IoT sensor data, or system logs
 - **Event Sourcing** - Store event streams with full audit trails
-- **Graph Relationships** - Build real-time social graphs or recommendation systems
-- **Time-Series Data** - Collect metrics, logs, and sensor readings
+- **Time-Series Data** - Collect metrics, logs, and sensor readings with temporal optimization
+- **Document Storage** - Store structured JSON documents with flexible schemas
 - **Operational Databases** - Sync data from microservices into SurrealDB
 
 ## Quick Start
@@ -83,31 +90,23 @@ CONNECTOR_CONFIG_PATH=my-config.toml ./target/release/danube-sink-surrealdb
 
 ## Configuration
 
-### Environment Variables (Single Topic)
+### Environment Variables
 
-For simple single-topic use cases, configure via environment variables:
+Environment variables are used **only for secrets and connection URLs** that vary between environments:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CONNECTOR_NAME` | Connector instance name | `surrealdb-sink` |
-| `DANUBE_SERVICE_URL` | Danube broker URL | `http://localhost:6650` |
-| `METRICS_PORT` | Prometheus metrics port | `9090` |
-| `SURREALDB_URL` | SurrealDB connection URL (ws:// or http://) | `ws://localhost:8000` |
-| `SURREALDB_NAMESPACE` | SurrealDB namespace | `default` |
-| `SURREALDB_DATABASE` | SurrealDB database | `default` |
-| `SURREALDB_USERNAME` | Optional username | - |
-| `SURREALDB_PASSWORD` | Optional password | - |
-| `SURREALDB_TOPIC` | Danube topic to consume | `/default/events` |
-| `SURREALDB_SUBSCRIPTION` | Subscription name | `surrealdb-sink` |
-| `SURREALDB_TABLE` | SurrealDB table name | `events` |
-| `SURREALDB_SCHEMA_TYPE` | Schema type (Json/String/Int64/Bytes) | `Json` |
-| `SURREALDB_BATCH_SIZE` | Records per batch | `100` |
-| `SURREALDB_FLUSH_INTERVAL_MS` | Max time between flushes (ms) | `1000` |
-| `SURREALDB_INCLUDE_METADATA` | Include Danube metadata | `true` |
+| Variable | Description | Use Case |
+|----------|-------------|----------|
+| `CONNECTOR_CONFIG_PATH` | Path to TOML config file | **Required** |
+| `SURREALDB_URL` | SurrealDB connection URL | Override for different environments (dev/staging/prod) |
+| `SURREALDB_USERNAME` | Database username | **Secrets** - should not be in config files |
+| `SURREALDB_PASSWORD` | Database password | **Secrets** - should not be in config files |
+| `DANUBE_SERVICE_URL` | Danube broker URL | Override for different environments |
 
-### TOML Configuration (Multi-Topic)
+**All other configuration (topics, tables, schema types, batching) must be in the TOML file.**
 
-For multi-topic routing and advanced features, use a TOML configuration file:
+### TOML Configuration (Required)
+
+All connector configuration must be defined in a TOML file:
 
 ```toml
 connector_name = "surrealdb-sink"
@@ -204,6 +203,78 @@ schema_type = "Bytes"
 **Input:** Raw bytes `[0x01, 0x02, 0x03]`
 
 **Stored:** `{"data": "AQID", "size": 3}` (base64 encoded)
+
+## Storage Modes
+
+The connector supports two storage modes for different use cases:
+
+### Document Mode (Default)
+
+Regular document storage for general-purpose data:
+
+```toml
+storage_mode = "Document"
+```
+
+**Use for:**
+- User events
+- Application logs
+- General JSON documents
+- Unstructured data
+
+### TimeSeries Mode
+
+Optimized for time-series data with automatic timestamp handling:
+
+```toml
+storage_mode = "TimeSeries"
+```
+
+**Features:**
+- Adds `_timestamp` field to every record
+- Uses Danube `publish_time` (set when message was published)
+- Optimized for temporal queries
+- No payload parsing required
+
+**Example Configuration:**
+
+```toml
+[[surrealdb.topic_mappings]]
+topic = "/iot/temperature"
+subscription = "surrealdb-iot"
+table_name = "temperature_readings"
+schema_type = "Json"
+storage_mode = "TimeSeries"  # Uses Danube publish_time
+batch_size = 500
+```
+
+**Input Payload:**
+```json
+{
+  "sensor_id": "sensor-001",
+  "temperature": 23.5
+}
+```
+
+**Stored in SurrealDB:**
+```json
+{
+  "sensor_id": "sensor-001",
+  "temperature": 23.5,
+  "_timestamp": "2024-01-01T12:00:00.123Z"
+}
+```
+
+**Timestamp Source:**
+- Uses Danube `publish_time` (microseconds since epoch)
+- Set automatically when message is published to Danube
+- Converted to RFC3339 format for storage
+
+**Use for:**
+- IoT sensor data
+- Metrics and monitoring
+- System logs with timestamps
+- Financial tick data
 
 ## Metadata Enrichment
 

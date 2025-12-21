@@ -360,6 +360,7 @@ impl Default for SurrealDBSinkConnector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::StorageMode;
     use danube_connect_core::SchemaType;
     use serde_json::Value;
 
@@ -373,6 +374,7 @@ mod tests {
             batch_size: Some(10),
             flush_interval_ms: Some(5000),
             schema_type: SchemaType::Json,
+            storage_mode: StorageMode::Document,
         };
 
         let mut context = TableContext::new(mapping, 100, 1000);
@@ -422,6 +424,7 @@ mod tests {
                     batch_size: None,
                     flush_interval_ms: None,
                     schema_type: SchemaType::Json,
+                    storage_mode: StorageMode::Document,
                 }],
                 batch_size: 100,
                 flush_interval_ms: 1000,

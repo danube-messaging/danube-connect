@@ -30,6 +30,7 @@ topic = "/events/user"
 subscription = "surrealdb-user-events"
 table_name = "user_events"
 schema_type = "Json"
+storage_mode = "Document"  # Regular document storage for user events
 
 include_danube_metadata = true
 batch_size = 200  # Higher batch for high-volume topic
@@ -43,6 +44,7 @@ topic = "/iot/sensors"
 subscription = "surrealdb-iot-data"
 table_name = "sensor_readings"
 schema_type = "Json"
+storage_mode = "TimeSeries"  # Time-series mode for IoT sensor data
 
 # Auto-generate IDs for time-series data
 include_danube_metadata = true
@@ -57,6 +59,7 @@ topic = "/system/logs"
 subscription = "surrealdb-logs"
 table_name = "system_logs"
 schema_type = "String"
+storage_mode = "TimeSeries"  # Time-series mode for log data
 
 include_danube_metadata = true
 batch_size = 50  # Small batch for critical logs
@@ -70,6 +73,7 @@ topic = "/metrics/counters"
 subscription = "surrealdb-metrics"
 table_name = "metric_counters"
 schema_type = "Int64"
+storage_mode = "TimeSeries"  # Time-series mode for metrics
 
 include_danube_metadata = true
 batch_size = 100
@@ -83,6 +87,7 @@ topic = "/data/binary"
 subscription = "surrealdb-binary"
 table_name = "binary_data"
 schema_type = "Bytes"
+storage_mode = "Document"  # Regular document storage for binary data
 
 include_danube_metadata = false  # Keep records clean
 batch_size = 50
@@ -96,6 +101,7 @@ topic = "/orders/created"
 subscription = "surrealdb-orders"
 table_name = "orders"
 schema_type = "Json"
+storage_mode = "Document"  # Regular document storage for transactional data
 
 include_danube_metadata = false  # Clean records for API responses
 batch_size = 20  # Small batch for transactional consistency

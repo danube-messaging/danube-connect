@@ -9,6 +9,7 @@ Complete reference for configuring the SurrealDB Sink Connector.
 - [SurrealDB Connection](#surrealdb-connection)
 - [Topic Mappings](#topic-mappings)
 - [Schema Types](#schema-types)
+- [Storage Modes](#storage-modes)
 - [Batch Processing](#batch-processing)
 - [Environment Variables](#environment-variables)
 - [Performance Tuning](#performance-tuning)
@@ -16,36 +17,31 @@ Complete reference for configuring the SurrealDB Sink Connector.
 
 ## Configuration Methods
 
-### 1. TOML Configuration File (Recommended)
+### TOML Configuration File (Required)
 
-Best for multi-topic scenarios:
+All connector configuration must be defined in a TOML file:
 
 ```bash
 CONNECTOR_CONFIG_PATH=/path/to/connector.toml danube-sink-surrealdb
 ```
 
-### 2. Environment Variables
+### Environment Variable Overrides
 
-Best for simple single-topic deployments:
-
-```bash
-export SURREALDB_URL=ws://localhost:8000
-export SURREALDB_TOPIC=/default/events
-export SURREALDB_TABLE=events
-danube-sink-surrealdb
-```
-
-### 3. Hybrid Approach
-
-TOML file with environment variable overrides:
+Environment variables can override **only secrets and connection URLs**:
 
 ```bash
-# Base configuration from file
+# Base configuration from TOML file
 CONNECTOR_CONFIG_PATH=config.toml \
-# Override specific values
+# Override secrets (don't put these in config files!)
+SURREALDB_USERNAME=admin \
+SURREALDB_PASSWORD=secret \
+# Override URLs for different environments
 SURREALDB_URL=ws://production-db:8000 \
+DANUBE_SERVICE_URL=http://prod-broker:6650 \
 danube-sink-surrealdb
 ```
+
+**Note:** Topic mappings, schema types, and other settings must be in the TOML file.
 
 ## Core Settings
 
@@ -225,15 +221,63 @@ include_danube_metadata = true  # Default: true
 - Event ordering
 - Data lineage
 
-### Environment Variables (Single Topic Only)
+### Environment Variables (Secrets & URLs Only)
 
-| Variable | TOML Key | Default |
-|----------|----------|---------|
-| `SURREALDB_TOPIC` | `topic` | `/default/events` |
-| `SURREALDB_SUBSCRIPTION` | `subscription` | `surrealdb-sink` |
-| `SURREALDB_TABLE` | `table_name` | `events` |
-| `SURREALDB_SCHEMA_TYPE` | `schema_type` | `Json` |
-| `SURREALDB_INCLUDE_METADATA` | `include_danube_metadata` | `true` |
+| Variable | Purpose | Example |
+|----------|---------|----------|
+| `CONNECTOR_CONFIG_PATH` | Path to TOML config | `config/connector.toml` |
+| `SURREALDB_URL` | Override database URL | `ws://prod-db:8000` |
+| `SURREALDB_USERNAME` | Database username (secret) | `admin` |
+| `SURREALDB_PASSWORD` | Database password (secret) | `***` |
+| `DANUBE_SERVICE_URL` | Override broker URL | `http://prod-broker:6650` |
+
+## Storage Modes
+
+The connector supports two storage modes:
+
+### Document Mode (Default)
+
+Regular document storage:
+
+```toml
+[[surrealdb.topic_mappings]]
+topic = "/events/user"
+subscription = "surrealdb-user"
+table_name = "user_events"
+schema_type = "Json"
+storage_mode = "Document"  # Default
+```
+
+### TimeSeries Mode
+
+Optimized for time-series data with automatic timestamp handling:
+
+```toml
+[[surrealdb.topic_mappings]]
+topic = "/iot/temperature"
+subscription = "surrealdb-iot"
+table_name = "temperature_readings"
+schema_type = "Json"
+storage_mode = "TimeSeries"
+```
+
+**Features:**
+- Adds `_timestamp` field to every record
+- Uses Danube `publish_time` (microseconds since epoch)
+- Timestamp set when message is published to Danube
+- Converted to RFC3339 format for storage
+- No payload parsing required
+
+**Example with String schema:**
+
+```toml
+[[surrealdb.topic_mappings]]
+topic = "/logs/system"
+subscription = "surrealdb-logs"
+table_name = "system_logs"
+schema_type = "String"
+storage_mode = "TimeSeries"
+```
 
 ## Schema Types
 

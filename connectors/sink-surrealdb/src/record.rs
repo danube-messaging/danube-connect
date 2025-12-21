@@ -2,8 +2,12 @@
 //!
 //! This module converts Danube messages into SurrealDB records.
 //! All deserialization is handled by danube-connect-core's SinkRecord.payload_deserialized().
+//!
+//! Supports two storage modes:
+//! - Document: Regular document storage (default)
+//! - TimeSeries: Adds timestamp field for time-series optimization
 
-use crate::config::TopicMapping;
+use crate::config::{StorageMode, TopicMapping};
 use chrono::{DateTime, Utc};
 use danube_connect_core::{ConnectorResult, SinkRecord};
 use serde_json::{json, Value};
@@ -24,6 +28,8 @@ pub struct SurrealDBRecord {
 /// ensuring consistent behavior across all sink connectors.
 ///
 /// Record ID comes from message attributes (set by producer).
+/// 
+/// For TimeSeries mode, adds a timestamp field for temporal queries.
 pub fn to_surrealdb_record(
     record: &SinkRecord,
     mapping: &TopicMapping,
@@ -34,12 +40,41 @@ pub fn to_surrealdb_record(
     // Deserialize payload using core library (handles all schema types)
     let mut data = record.payload_deserialized(mapping.schema_type)?;
 
+    // Add timestamp for time-series mode
+    if mapping.storage_mode == StorageMode::TimeSeries {
+        add_timestamp(&mut data, record, mapping)?;
+    }
+
     // Add Danube metadata if configured
     if mapping.include_danube_metadata {
         add_metadata(&mut data, record);
     }
 
     Ok(SurrealDBRecord { id, data })
+}
+
+/// Add timestamp for time-series mode
+/// 
+/// Uses Danube publish_time (microseconds since epoch) as the timestamp
+fn add_timestamp(
+    data: &mut Value,
+    record: &SinkRecord,
+    _mapping: &TopicMapping,
+) -> ConnectorResult<()> {
+    // Convert publish_time (microseconds) to DateTime<Utc>
+    let publish_time_micros = record.publish_time();
+    let publish_time_secs = (publish_time_micros / 1_000_000) as i64;
+    let publish_time_nanos = ((publish_time_micros % 1_000_000) * 1000) as u32;
+    
+    let timestamp = DateTime::from_timestamp(publish_time_secs, publish_time_nanos)
+        .unwrap_or_else(|| Utc::now());
+
+    // Add timestamp to data
+    if let Value::Object(map) = data {
+        map.insert("_timestamp".to_string(), json!(timestamp.to_rfc3339()));
+    }
+
+    Ok(())
 }
 
 /// Add Danube metadata to the record
@@ -65,6 +100,7 @@ fn add_metadata(data: &mut Value, record: &SinkRecord) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::StorageMode;
     use danube_connect_core::SchemaType;
     use danube_core::message::{MessageID, StreamMessage};
     use serde_json::json;
@@ -107,6 +143,7 @@ mod tests {
             batch_size: None,
             flush_interval_ms: None,
             schema_type: SchemaType::Json,
+            storage_mode: StorageMode::Document,
         };
 
         let result = to_surrealdb_record(&record, &mapping).unwrap();
@@ -128,6 +165,7 @@ mod tests {
             batch_size: None,
             flush_interval_ms: None,
             schema_type: SchemaType::String,
+            storage_mode: StorageMode::Document,
         };
 
         let result = to_surrealdb_record(&record, &mapping).unwrap();
@@ -148,6 +186,7 @@ mod tests {
             batch_size: None,
             flush_interval_ms: None,
             schema_type: SchemaType::Int64,
+            storage_mode: StorageMode::Document,
         };
 
         let result = to_surrealdb_record(&record, &mapping).unwrap();
@@ -168,6 +207,7 @@ mod tests {
             batch_size: None,
             flush_interval_ms: None,
             schema_type: SchemaType::Bytes,
+            storage_mode: StorageMode::Document,
         };
 
         let result = to_surrealdb_record(&record, &mapping).unwrap();
@@ -191,6 +231,7 @@ mod tests {
             batch_size: None,
             flush_interval_ms: None,
             schema_type: SchemaType::Json,
+            storage_mode: StorageMode::Document,
         };
 
         let result = to_surrealdb_record(&record, &mapping).unwrap();

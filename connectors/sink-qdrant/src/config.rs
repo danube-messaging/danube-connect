@@ -16,21 +16,17 @@ pub struct QdrantSinkConfig {
 }
 
 impl QdrantSinkConfig {
-    /// Load configuration from a single TOML file with optional ENV overrides
+    /// Load configuration from TOML file
+    /// 
+    /// The config file path must be specified via CONNECTOR_CONFIG_PATH environment variable.
+    /// Environment variables can override secrets (API key) and URLs.
     pub fn load() -> ConnectorResult<Self> {
-        // Try to load from file first
-        let mut config = if let Ok(config_file) = env::var("CONFIG_FILE") {
-            Self::from_file(&config_file)?
-        } else {
-            // Fallback to environment variables
-            Self::from_env()?
-        };
-
-        // Apply environment variable overrides
-        config.core.apply_env_overrides();
-        config.qdrant.apply_env_overrides();
-
-        Ok(config)
+        let config_path = env::var("CONNECTOR_CONFIG_PATH")
+            .map_err(|_| danube_connect_core::ConnectorError::config(
+                "CONNECTOR_CONFIG_PATH environment variable must be set to the path of the TOML configuration file"
+            ))?;
+        
+        Self::from_file(&config_path)
     }
 
     /// Load configuration from a TOML file
@@ -42,20 +38,39 @@ impl QdrantSinkConfig {
             ))
         })?;
 
-        toml::from_str(&content).map_err(|e| {
+        let mut config: Self = toml::from_str(&content).map_err(|e| {
             danube_connect_core::ConnectorError::config(format!(
                 "Failed to parse config file {}: {}",
                 path, e
             ))
-        })
+        })?;
+
+        // Apply environment variable overrides for secrets and URLs
+        config.apply_env_overrides();
+
+        Ok(config)
     }
 
-    /// Load configuration from environment variables
-    pub fn from_env() -> ConnectorResult<Self> {
-        Ok(Self {
-            core: ConnectorConfig::from_env()?,
-            qdrant: QdrantConfig::from_env()?,
-        })
+    /// Apply environment variable overrides for secrets and connection details
+    /// 
+    /// Only overrides sensitive data that shouldn't be in config files:
+    /// - API key (secret)
+    /// - Connection URLs (for different environments)
+    fn apply_env_overrides(&mut self) {
+        // Override Qdrant URL (for different environments: dev/staging/prod)
+        if let Ok(url) = env::var("QDRANT_URL") {
+            self.qdrant.url = url;
+        }
+
+        // Override API key (secret should not be in config files)
+        if let Ok(api_key) = env::var("QDRANT_API_KEY") {
+            self.qdrant.api_key = Some(api_key);
+        }
+
+        // Override Danube broker URL (for different environments)
+        if let Ok(danube_url) = env::var("DANUBE_SERVICE_URL") {
+            self.core.danube_service_url = danube_url;
+        }
     }
 
     /// Validate all configuration
@@ -199,106 +214,6 @@ impl Distance {
 }
 
 impl QdrantConfig {
-    /// Load configuration from environment variables (backward compatible single topic)
-    pub fn from_env() -> ConnectorResult<Self> {
-        let url = env::var("QDRANT_URL").map_err(|_| {
-            danube_connect_core::ConnectorError::config("QDRANT_URL is required")
-        })?;
-
-        let api_key = env::var("QDRANT_API_KEY").ok();
-
-        // Backward compatibility: single topic configuration via env vars
-        let topic = env::var("QDRANT_TOPIC").unwrap_or_else(|_| "/default/vectors".to_string());
-        let subscription = env::var("QDRANT_SUBSCRIPTION")
-            .unwrap_or_else(|_| "qdrant-sink-sub".to_string());
-
-        let collection_name = env::var("QDRANT_COLLECTION").map_err(|_| {
-            danube_connect_core::ConnectorError::config("QDRANT_COLLECTION is required")
-        })?;
-
-        let vector_dimension = env::var("QDRANT_VECTOR_DIMENSION")
-            .map_err(|_| {
-                danube_connect_core::ConnectorError::config("QDRANT_VECTOR_DIMENSION is required")
-            })?
-            .parse()
-            .map_err(|_| {
-                danube_connect_core::ConnectorError::config(
-                    "QDRANT_VECTOR_DIMENSION must be a valid number",
-                )
-            })?;
-
-        let distance = env::var("QDRANT_DISTANCE")
-            .ok()
-            .and_then(|s| match s.to_lowercase().as_str() {
-                "cosine" => Some(Distance::Cosine),
-                "euclid" => Some(Distance::Euclid),
-                "dot" => Some(Distance::Dot),
-                "manhattan" => Some(Distance::Manhattan),
-                _ => None,
-            })
-            .unwrap_or(Distance::Cosine);
-
-        let batch_size = env::var("QDRANT_BATCH_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(100);
-
-        let batch_timeout_ms = env::var("QDRANT_BATCH_TIMEOUT_MS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(1000);
-
-        let auto_create_collection = env::var("QDRANT_AUTO_CREATE_COLLECTION")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(true);
-
-        let include_danube_metadata = env::var("QDRANT_INCLUDE_DANUBE_METADATA")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(true);
-
-        let timeout_secs = env::var("QDRANT_TIMEOUT_SECS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(30);
-
-        // Create single topic mapping from env vars
-        let topic_mapping = TopicMapping {
-            topic,
-            subscription,
-            subscription_type: SubscriptionType::Exclusive,
-            collection_name,
-            vector_dimension,
-            distance,
-            auto_create_collection,
-            include_danube_metadata,
-            batch_size: None,
-            batch_timeout_ms: None,
-        };
-
-        Ok(Self {
-            url,
-            api_key,
-            topic_mappings: vec![topic_mapping],
-            batch_size,
-            batch_timeout_ms,
-            timeout_secs,
-        })
-    }
-
-    /// Apply environment variable overrides to Qdrant configuration
-    pub fn apply_env_overrides(&mut self) {
-        if let Ok(val) = env::var("QDRANT_URL") {
-            self.url = val;
-        }
-        if let Ok(val) = env::var("QDRANT_API_KEY") {
-            self.api_key = Some(val);
-        }
-        // Topic-specific overrides would need to be handled per mapping
-        // For simplicity, global settings can be overridden here
-    }
-
     /// Validate the configuration
     pub fn validate(&self) -> ConnectorResult<()> {
         if self.url.is_empty() {

@@ -11,6 +11,16 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 
+/// Storage mode for SurrealDB records
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "PascalCase")]
+pub enum StorageMode {
+    /// Store as regular documents (default)
+    Document,
+    /// Store as time-series data with timestamp optimization
+    TimeSeries,
+}
+
 /// Complete configuration for the SurrealDB Sink Connector
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SurrealDBSinkConfig {
@@ -91,6 +101,10 @@ pub struct TopicMapping {
     /// Determines how to interpret and insert the payload
     #[serde(default)]
     pub schema_type: SchemaType,
+
+    /// Storage mode: Document or TimeSeries
+    #[serde(default)]
+    pub storage_mode: StorageMode,
 }
 
 // Default value functions
@@ -114,16 +128,24 @@ fn default_include_metadata() -> bool {
     true
 }
 
+impl Default for StorageMode {
+    fn default() -> Self {
+        StorageMode::Document
+    }
+}
+
 impl SurrealDBSinkConfig {
-    /// Load configuration from TOML file or environment variables
+    /// Load configuration from TOML file
+    /// 
+    /// The config file path must be specified via CONNECTOR_CONFIG_PATH environment variable.
+    /// Environment variables can override secrets (username, password) and URLs.
     pub fn load() -> ConnectorResult<Self> {
-        // Try to load from config file first
-        if let Ok(config_path) = env::var("CONNECTOR_CONFIG_PATH") {
-            Self::from_file(&config_path)
-        } else {
-            // Fall back to environment variables
-            Self::from_env()
-        }
+        let config_path = env::var("CONNECTOR_CONFIG_PATH")
+            .map_err(|_| ConnectorError::config(
+                "CONNECTOR_CONFIG_PATH environment variable must be set to the path of the TOML configuration file"
+            ))?;
+        
+        Self::from_file(&config_path)
     }
 
     /// Load configuration from a TOML file
@@ -141,94 +163,21 @@ impl SurrealDBSinkConfig {
         Ok(config)
     }
 
-    /// Load configuration from environment variables (backward compatibility)
-    pub fn from_env() -> ConnectorResult<Self> {
-        let topic = env::var("SURREALDB_TOPIC").unwrap_or_else(|_| "/default/events".to_string());
-        let subscription =
-            env::var("SURREALDB_SUBSCRIPTION").unwrap_or_else(|_| "surrealdb-sink".to_string());
-        let table_name = env::var("SURREALDB_TABLE").unwrap_or_else(|_| "events".to_string());
-
-        // Create single topic mapping from env vars
-        let topic_mapping = TopicMapping {
-            topic,
-            subscription,
-            table_name,
-            include_danube_metadata: env::var("SURREALDB_INCLUDE_METADATA")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(true),
-            batch_size: env::var("SURREALDB_BATCH_SIZE")
-                .ok()
-                .and_then(|v| v.parse().ok()),
-            flush_interval_ms: env::var("SURREALDB_FLUSH_INTERVAL_MS")
-                .ok()
-                .and_then(|v| v.parse().ok()),
-            schema_type: env::var("SURREALDB_SCHEMA_TYPE")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(SchemaType::Json),
-        };
-
-        let config = SurrealDBSinkConfig {
-            core: ConnectorConfig {
-                connector_name: env::var("CONNECTOR_NAME")
-                    .unwrap_or_else(|_| "surrealdb-sink".to_string()),
-                danube_service_url: env::var("DANUBE_SERVICE_URL")
-                    .unwrap_or_else(|_| "http://localhost:6650".to_string()),
-                retry: Default::default(),
-                processing: Default::default(),
-            },
-            surrealdb: SurrealDBConfig {
-                url: env::var("SURREALDB_URL")
-                    .unwrap_or_else(|_| "ws://localhost:8000".to_string()),
-                namespace: env::var("SURREALDB_NAMESPACE")
-                    .unwrap_or_else(|_| "default".to_string()),
-                database: env::var("SURREALDB_DATABASE").unwrap_or_else(|_| "default".to_string()),
-                username: env::var("SURREALDB_USERNAME").ok(),
-                password: env::var("SURREALDB_PASSWORD").ok(),
-                connection_timeout_secs: env::var("SURREALDB_CONNECTION_TIMEOUT_SECS")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(default_connection_timeout()),
-                request_timeout_secs: env::var("SURREALDB_REQUEST_TIMEOUT_SECS")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(default_request_timeout()),
-                topic_mappings: vec![topic_mapping],
-                batch_size: env::var("SURREALDB_BATCH_SIZE")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(default_batch_size()),
-                flush_interval_ms: env::var("SURREALDB_FLUSH_INTERVAL_MS")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(default_flush_interval_ms()),
-            },
-        };
-
-        Ok(config)
-    }
-
-    /// Apply environment variable overrides to configuration
+    /// Apply environment variable overrides for secrets and connection details
+    /// 
+    /// Only overrides sensitive data that shouldn't be in config files:
+    /// - Credentials (username, password)
+    /// - Connection URLs (for different environments)
     fn apply_env_overrides(&mut self) -> ConnectorResult<()> {
-        // Core overrides
-        if let Ok(name) = env::var("CONNECTOR_NAME") {
-            self.core.connector_name = name;
-        }
-        if let Ok(url) = env::var("DANUBE_SERVICE_URL") {
-            self.core.danube_service_url = url;
-        }
-
-        // SurrealDB overrides
+        // Override connection URLs (for different environments: dev/staging/prod)
         if let Ok(url) = env::var("SURREALDB_URL") {
             self.surrealdb.url = url;
         }
-        if let Ok(ns) = env::var("SURREALDB_NAMESPACE") {
-            self.surrealdb.namespace = ns;
+        if let Ok(danube_url) = env::var("DANUBE_SERVICE_URL") {
+            self.core.danube_service_url = danube_url;
         }
-        if let Ok(db) = env::var("SURREALDB_DATABASE") {
-            self.surrealdb.database = db;
-        }
+
+        // Override credentials (secrets should not be in config files)
         if let Ok(username) = env::var("SURREALDB_USERNAME") {
             self.surrealdb.username = Some(username);
         }
@@ -273,6 +222,11 @@ impl SurrealDBSinkConfig {
             if mapping.table_name.is_empty() {
                 return Err(ConnectorError::config("Table name cannot be empty"));
             }
+            // storage_mode is an enum with default, so it's always valid
+            // Just verify it's one of the expected values (Document or TimeSeries)
+            match mapping.storage_mode {
+                StorageMode::Document | StorageMode::TimeSeries => {}
+            }
         }
 
         Ok(())
@@ -308,6 +262,7 @@ mod tests {
                     batch_size: None,
                     flush_interval_ms: None,
                     schema_type: SchemaType::Json,
+                    storage_mode: StorageMode::Document,
                 }],
                 batch_size: 100,
                 flush_interval_ms: 1000,
@@ -327,11 +282,60 @@ mod tests {
     }
 
     #[test]
+    fn test_storage_mode_validation() {
+        let config = SurrealDBSinkConfig {
+            core: ConnectorConfig {
+                connector_name: "test".to_string(),
+                danube_service_url: "http://localhost:6650".to_string(),
+                retry: Default::default(),
+                processing: Default::default(),
+            },
+            surrealdb: SurrealDBConfig {
+                url: "ws://localhost:8000".to_string(),
+                namespace: "test".to_string(),
+                database: "test".to_string(),
+                username: None,
+                password: None,
+                connection_timeout_secs: 30,
+                request_timeout_secs: 30,
+                topic_mappings: vec![
+                    TopicMapping {
+                        topic: "/test/document".to_string(),
+                        subscription: "test-doc".to_string(),
+                        table_name: "documents".to_string(),
+                        include_danube_metadata: true,
+                        batch_size: None,
+                        flush_interval_ms: None,
+                        schema_type: SchemaType::Json,
+                        storage_mode: StorageMode::Document,
+                    },
+                    TopicMapping {
+                        topic: "/test/timeseries".to_string(),
+                        subscription: "test-ts".to_string(),
+                        table_name: "timeseries".to_string(),
+                        include_danube_metadata: true,
+                        batch_size: None,
+                        flush_interval_ms: None,
+                        schema_type: SchemaType::Json,
+                        storage_mode: StorageMode::TimeSeries,
+                    },
+                ],
+                batch_size: 100,
+                flush_interval_ms: 1000,
+            },
+        };
+
+        // Both storage modes should validate successfully
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
     fn test_default_values() {
         assert_eq!(default_batch_size(), 100);
         assert_eq!(default_flush_interval_ms(), 1000);
         assert_eq!(default_connection_timeout(), 30);
         assert_eq!(default_request_timeout(), 30);
         assert!(default_include_metadata());
+        assert_eq!(StorageMode::default(), StorageMode::Document);
     }
 }
