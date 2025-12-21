@@ -59,6 +59,7 @@ mod message;
 mod metrics;
 mod retry;
 mod runtime;
+mod schema;
 mod traits;
 pub mod utils;
 
@@ -69,6 +70,7 @@ pub use message::{SinkRecord, SourceRecord};
 pub use metrics::ConnectorMetrics;
 pub use retry::{RetryConfig, RetryStrategy};
 pub use runtime::{ConsumerConfig, ProducerConfig, SinkRuntime, SourceRuntime};
+pub use schema::SchemaType;
 pub use traits::{Offset, SinkConnector, SourceConnector};
 pub use utils::{Batcher, HealthChecker, HealthStatus};
 

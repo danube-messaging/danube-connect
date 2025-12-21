@@ -1,0 +1,202 @@
+//! Record processing module for SurrealDB Sink Connector
+//!
+//! This module converts Danube messages into SurrealDB records.
+//! All deserialization is handled by danube-connect-core's SinkRecord.payload_deserialized().
+
+use crate::config::TopicMapping;
+use chrono::{DateTime, Utc};
+use danube_connect_core::{ConnectorResult, SinkRecord};
+use serde_json::{json, Value};
+
+/// Represents a SurrealDB record ready for insertion
+#[derive(Debug, Clone)]
+pub struct SurrealDBRecord {
+    /// Optional record ID (from message attributes)
+    pub id: Option<String>,
+
+    /// Record data - payload wrapped based on schema type
+    pub data: Value,
+}
+
+/// Convert a Danube SinkRecord into a SurrealDB record
+/// 
+/// This function uses danube-connect-core's unified deserialization method,
+/// ensuring consistent behavior across all sink connectors.
+///
+/// Record ID comes from message attributes (set by producer).
+pub fn to_surrealdb_record(
+    record: &SinkRecord,
+    mapping: &TopicMapping,
+) -> ConnectorResult<SurrealDBRecord> {
+    // Get record ID from message attributes (set by producer)
+    let id = record.get_attribute("record_id").map(|s| s.to_string());
+
+    // Deserialize payload using core library (handles all schema types)
+    let mut data = record.payload_deserialized(mapping.schema_type)?;
+
+    // Add Danube metadata if configured
+    if mapping.include_danube_metadata {
+        add_metadata(&mut data, record);
+    }
+
+    Ok(SurrealDBRecord { id, data })
+}
+
+/// Add Danube metadata to the record
+fn add_metadata(data: &mut Value, record: &SinkRecord) {
+    // Convert publish_time (microseconds) to DateTime<Utc>
+    let publish_time_secs = record.publish_time() / 1_000_000;
+    let publish_time_nanos = ((record.publish_time() % 1_000_000) * 1000) as u32;
+    let datetime = DateTime::from_timestamp(publish_time_secs as i64, publish_time_nanos)
+        .unwrap_or_else(|| Utc::now());
+
+    let metadata = json!({
+        "danube_topic": record.topic(),
+        "danube_offset": record.offset(),
+        "danube_timestamp": datetime.to_rfc3339(),
+        "danube_message_id": record.message_id(),
+    });
+
+    if let Value::Object(map) = data {
+        map.insert("_danube_metadata".to_string(), metadata);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use danube_connect_core::SchemaType;
+    use danube_core::message::{MessageID, StreamMessage};
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    fn create_test_record(payload: Vec<u8>) -> SinkRecord {
+        let message = StreamMessage {
+            request_id: 1,
+            msg_id: MessageID {
+                producer_id: 1,
+                topic_name: "/test/topic".to_string(),
+                broker_addr: "localhost:6650".to_string(),
+                topic_offset: 42,
+            },
+            payload,
+            publish_time: Utc::now().timestamp_micros() as u64,
+            producer_name: "test-producer".to_string(),
+            subscription_name: Some("test-sub".to_string()),
+            attributes: HashMap::new(),
+        };
+
+        SinkRecord::from_stream_message(message, None)
+    }
+
+    #[test]
+    fn test_json_record() {
+        let payload = serde_json::to_vec(&json!({
+            "id": "user-123",
+            "name": "John Doe",
+            "age": 30
+        }))
+        .unwrap();
+
+        let record = create_test_record(payload);
+        let mapping = TopicMapping {
+            topic: "/test/topic".to_string(),
+            subscription: "test-sub".to_string(),
+            table_name: "users".to_string(),
+            include_danube_metadata: false,
+            batch_size: None,
+            flush_interval_ms: None,
+            schema_type: SchemaType::Json,
+        };
+
+        let result = to_surrealdb_record(&record, &mapping).unwrap();
+        assert_eq!(result.id, None); // ID comes from attributes, not payload
+        assert_eq!(result.data["name"], "John Doe");
+        assert_eq!(result.data["age"], 30);
+        assert_eq!(result.data["id"], "user-123"); // ID stays in payload
+    }
+
+    #[test]
+    fn test_string_record() {
+        let payload = b"Hello, SurrealDB!".to_vec();
+        let record = create_test_record(payload);
+        let mapping = TopicMapping {
+            topic: "/test/topic".to_string(),
+            subscription: "test-sub".to_string(),
+            table_name: "messages".to_string(),
+            include_danube_metadata: false,
+            batch_size: None,
+            flush_interval_ms: None,
+            schema_type: SchemaType::String,
+        };
+
+        let result = to_surrealdb_record(&record, &mapping).unwrap();
+        assert_eq!(result.id, None);
+        assert_eq!(result.data["data"], "Hello, SurrealDB!");
+    }
+
+    #[test]
+    fn test_int64_record() {
+        let value: i64 = 42;
+        let payload = value.to_be_bytes().to_vec();
+        let record = create_test_record(payload);
+        let mapping = TopicMapping {
+            topic: "/test/topic".to_string(),
+            subscription: "test-sub".to_string(),
+            table_name: "counters".to_string(),
+            include_danube_metadata: false,
+            batch_size: None,
+            flush_interval_ms: None,
+            schema_type: SchemaType::Int64,
+        };
+
+        let result = to_surrealdb_record(&record, &mapping).unwrap();
+        assert_eq!(result.id, None);
+        // Int64 deserialized to actual number
+        assert_eq!(result.data["value"], 42);
+    }
+
+    #[test]
+    fn test_bytes_record() {
+        let payload = vec![0x01, 0x02, 0x03, 0x04];
+        let record = create_test_record(payload.clone());
+        let mapping = TopicMapping {
+            topic: "/test/topic".to_string(),
+            subscription: "test-sub".to_string(),
+            table_name: "binary_data".to_string(),
+            include_danube_metadata: false,
+            batch_size: None,
+            flush_interval_ms: None,
+            schema_type: SchemaType::Bytes,
+        };
+
+        let result = to_surrealdb_record(&record, &mapping).unwrap();
+        assert_eq!(result.id, None);
+        assert_eq!(result.data["size"], 4);
+        // Verify base64 encoding
+        let expected_base64 =
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &payload);
+        assert_eq!(result.data["data"], expected_base64);
+    }
+
+    #[test]
+    fn test_metadata_enrichment() {
+        let payload = serde_json::to_vec(&json!({"event": "test"})).unwrap();
+        let record = create_test_record(payload);
+        let mapping = TopicMapping {
+            topic: "/test/topic".to_string(),
+            subscription: "test-sub".to_string(),
+            table_name: "events".to_string(),
+            include_danube_metadata: true,
+            batch_size: None,
+            flush_interval_ms: None,
+            schema_type: SchemaType::Json,
+        };
+
+        let result = to_surrealdb_record(&record, &mapping).unwrap();
+        assert!(result.data.get("_danube_metadata").is_some());
+        let metadata = &result.data["_danube_metadata"];
+        assert_eq!(metadata["danube_topic"], "/test/topic");
+        assert_eq!(metadata["danube_offset"], 42);
+    }
+}

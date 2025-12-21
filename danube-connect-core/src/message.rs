@@ -3,10 +3,11 @@
 //! This module provides helper types and methods for transforming messages between
 //! Danube's format and connector-specific formats.
 
-use crate::{ConnectorError, ConnectorResult};
+use crate::{ConnectorError, ConnectorResult, SchemaType};
 use danube_core::message::StreamMessage;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 /// Record passed to sink connectors (from Danube → External System)
@@ -40,6 +41,51 @@ impl SinkRecord {
         self.message.payload.len()
     }
 
+    /// Deserialize the payload according to schema type
+    ///
+    /// This method handles the conversion from raw bytes to the appropriate format
+    /// based on the Danube schema type. All sink connectors should use this method
+    /// to ensure consistent deserialization across the system.
+    ///
+    /// # Schema Type Handling
+    ///
+    /// - **Json**: Deserializes to `serde_json::Value`
+    /// - **String**: Deserializes to UTF-8 string, wrapped in `{data: "..."}`
+    /// - **Int64**: Deserializes big-endian 8 bytes to i64, wrapped in `{value: N}`
+    /// - **Bytes**: Encodes as base64, wrapped in `{data: "base64...", size: N}`
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // In any sink connector
+    /// let data = record.payload_deserialized(mapping.schema_type)?;
+    /// // data is now a serde_json::Value ready to insert
+    /// ```
+    pub fn payload_deserialized(&self, schema_type: SchemaType) -> ConnectorResult<Value> {
+        match schema_type {
+            SchemaType::Json => self.payload_json(),
+            SchemaType::String => {
+                let string_value = self.payload_str()?.to_string();
+                Ok(json!({
+                    "data": string_value
+                }))
+            }
+            SchemaType::Int64 => {
+                let value = self.payload_int64()?;
+                Ok(json!({
+                    "value": value
+                }))
+            }
+            SchemaType::Bytes => {
+                let base64_data = self.payload_base64();
+                Ok(json!({
+                    "data": base64_data,
+                    "size": self.payload_size()
+                }))
+            }
+        }
+    }
+
     /// Get the payload as a UTF-8 string (if valid)
     pub fn payload_str(&self) -> ConnectorResult<&str> {
         std::str::from_utf8(&self.message.payload).map_err(|e| ConnectorError::InvalidData {
@@ -48,17 +94,37 @@ impl SinkRecord {
         })
     }
 
-    /// Get the payload as a String
-    pub fn payload_string(&self) -> ConnectorResult<String> {
-        self.payload_str().map(|s| s.to_string())
-    }
-
     /// Deserialize the payload as JSON
     pub fn payload_json<T: DeserializeOwned>(&self) -> ConnectorResult<T> {
         serde_json::from_slice(&self.message.payload).map_err(|e| ConnectorError::InvalidData {
             message: format!("Failed to deserialize JSON: {}", e),
             payload: self.message.payload.clone(),
         })
+    }
+
+    /// Deserialize the payload as Int64 (big-endian 8 bytes)
+    pub fn payload_int64(&self) -> ConnectorResult<i64> {
+        let payload = self.payload();
+        if payload.len() != 8 {
+            return Err(ConnectorError::invalid_data(
+                format!(
+                    "Int64 payload must be exactly 8 bytes, got {}",
+                    payload.len()
+                ),
+                payload.to_vec(),
+            ));
+        }
+
+        // Deserialize as big-endian i64 (Danube convention)
+        Ok(i64::from_be_bytes([
+            payload[0], payload[1], payload[2], payload[3], payload[4], payload[5], payload[6],
+            payload[7],
+        ]))
+    }
+
+    /// Encode the payload as base64 (for Bytes schema)
+    pub fn payload_base64(&self) -> String {
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, self.payload())
     }
 
     /// Access message attributes
@@ -240,7 +306,6 @@ mod tests {
         let record = SinkRecord::from_stream_message(message, None);
 
         assert_eq!(record.payload_str().unwrap(), "test payload");
-        assert_eq!(record.payload_string().unwrap(), "test payload");
     }
 
     #[test]
@@ -263,6 +328,37 @@ mod tests {
         let decoded: TestData = record.payload_json().unwrap();
 
         assert_eq!(decoded, data);
+    }
+
+    #[test]
+    fn test_sink_record_payload_int64() {
+        let value: i64 = 42;
+        let mut message = create_test_message();
+        message.payload = value.to_be_bytes().to_vec();
+
+        let record = SinkRecord::from_stream_message(message, None);
+        assert_eq!(record.payload_int64().unwrap(), 42);
+    }
+
+    #[test]
+    fn test_sink_record_payload_int64_invalid_length() {
+        let mut message = create_test_message();
+        message.payload = vec![1, 2, 3]; // Only 3 bytes, not 8
+
+        let record = SinkRecord::from_stream_message(message, None);
+        assert!(record.payload_int64().is_err());
+    }
+
+    #[test]
+    fn test_sink_record_payload_base64() {
+        let mut message = create_test_message();
+        message.payload = vec![0x01, 0x02, 0x03, 0x04];
+
+        let record = SinkRecord::from_stream_message(message, None);
+        let base64 = record.payload_base64();
+
+        // Verify it's valid base64
+        assert_eq!(base64, "AQIDBA==");
     }
 
     #[test]

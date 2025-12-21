@@ -24,6 +24,7 @@ rand.workspace = true
 
 # Additional dependencies
 toml = "0.8"
+base64 = "0.22"
 
 # Danube dependencies
 danube-client = { workspace = true }
