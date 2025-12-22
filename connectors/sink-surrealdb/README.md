@@ -1,44 +1,26 @@
 # SurrealDB Sink Connector
 
-Stream events from Danube into [SurrealDB](https://surrealdb.com/) - the ultimate multi-model database for modern applications.
+Stream events from Danube into [SurrealDB](https://surrealdb.com/) - the ultimate multi-model database for modern applications. Built entirely in Rust for maximum performance and zero JVM overhead.
 
-## Overview
+## ✨ Features
 
-The SurrealDB Sink Connector enables real-time data streaming from Danube topics to SurrealDB tables. Built entirely in Rust for maximum performance and zero JVM overhead.
+- 🚀 **Multi-Model Support** - Store events as documents or time-series data
+- 📊 **Schema-Aware** - Supports JSON, String, Int64, and Bytes schema types
+- ⏱️ **Time-Series Optimization** - Automatic timestamp handling for temporal queries
+- 🎯 **Multi-Topic Routing** - Route different topics to different tables with independent configurations
+- 📦 **Configurable Batching** - Optimize throughput with per-topic batch sizes and flush intervals
+- 🔑 **Custom Record IDs** - Use message attributes for idempotent inserts or auto-generate
+- 📝 **Metadata Enrichment** - Optionally include Danube metadata (topic, offset, timestamp)
+- ⚡ **Zero-Copy Performance** - Rust-to-Rust with WebSocket protocol
+- 🛡️ **Production Ready** - Health checks, metrics, graceful shutdown
 
 **Supported Storage Modes:**
 - **Document** - Regular document storage (default)
 - **TimeSeries** - Time-series data with automatic timestamp handling
 
-> **Note:** Graph storage is not currently supported. For graph relationships, consider using SurrealDB's `RELATE` statements in your application layer.
+**Use Cases:** Real-time analytics, event sourcing, time-series data, document storage, operational databases
 
-### Key Features
-
-- ✅ **Multi-Model Support** - Store events as documents or time-series data
-- ✅ **Schema-Aware** - Supports JSON, String, Int64, and Bytes schema types
-- ✅ **Time-Series Optimization** - Automatic timestamp handling for temporal queries
-- ✅ **Multi-Topic Routing** - Route different topics to different tables with independent configurations
-- ✅ **Configurable Batching** - Optimize throughput with per-topic batch sizes and flush intervals
-- ✅ **Custom Record IDs** - Use message attributes for idempotent inserts or auto-generate
-- ✅ **Metadata Enrichment** - Optionally include Danube metadata (topic, offset, timestamp)
-- ✅ **Zero-Copy Performance** - Rust-to-Rust with WebSocket protocol
-- ✅ **Production Ready** - Health checks, metrics, graceful shutdown
-
-### Use Cases
-
-- **Real-Time Analytics** - Stream user events, IoT sensor data, or system logs
-- **Event Sourcing** - Store event streams with full audit trails
-- **Time-Series Data** - Collect metrics, logs, and sensor readings with temporal optimization
-- **Document Storage** - Store structured JSON documents with flexible schemas
-- **Operational Databases** - Sync data from microservices into SurrealDB
-
-## Quick Start
-
-### Prerequisites
-
-- Danube broker running (see [Danube docs](https://github.com/danrusei/danube))
-- SurrealDB instance (see [SurrealDB docs](https://surrealdb.com/docs))
-- Rust 1.75+ (for building from source)
+## 🚀 Quick Start
 
 ### Running with Docker
 
@@ -57,44 +39,34 @@ docker run -d \
 
 **Note:** All structural configuration (topics, tables, schema types, batching) must be in `connector.toml`. See [Configuration](#configuration) section below.
 
-### Running from Source
+### Complete Example
 
-```bash
-# Clone the repository
-git clone https://github.com/danrusei/danube-connect.git
-cd danube-connect/connectors/sink-surrealdb
+For a complete working setup with Docker Compose, test data, and query examples:
 
-# Build
-cargo build --release
+👉 **See [examples/sink-surrealdb](../../examples/sink-surrealdb/README.md)**
 
-# Create/edit connector.toml configuration file (see Configuration section)
-# Then run with config file and optional environment overrides
-export CONNECTOR_CONFIG_PATH=./config/connector.toml
-export DANUBE_SERVICE_URL=http://localhost:6650
-export CONNECTOR_NAME=surrealdb-sink
-export SURREALDB_URL=ws://localhost:8000
-export SURREALDB_USERNAME=root
-export SURREALDB_PASSWORD=root
+The example includes:
+- Docker Compose setup (Danube + ETCD + SurrealDB)
+- Pre-configured connector.toml
+- Test producers using danube-cli
+- Query examples and data verification
 
-./target/release/danube-sink-surrealdb
-```
+## ⚙️ Configuration
 
-### Running with Configuration File
+### 📖 Complete Configuration Guide
 
-```bash
-# Create config file
-cp config/connector.toml my-config.toml
-# Edit configuration...
+See **[config/README.md](config/README.md)** for comprehensive configuration documentation including:
+- Core and connector-specific configuration options
+- Schema types and storage modes
+- Environment variable reference
+- Configuration patterns and best practices
+- Performance tuning guidelines
 
-# Run with config file
-CONNECTOR_CONFIG_PATH=my-config.toml ./target/release/danube-sink-surrealdb
-```
+### 📄 Quick Reference
 
-## Configuration
+#### Environment Variables
 
-### Environment Variables
-
-Environment variables are used **only for secrets and connection URLs** that vary between environments:
+Environment variables are used **only for secrets and connection URLs**:
 
 | Variable | Description | Use Case |
 |----------|-------------|----------|
@@ -107,7 +79,7 @@ Environment variables are used **only for secrets and connection URLs** that var
 
 **All other configuration (topics, tables, schema types, batching) must be in the TOML file.**
 
-### TOML Configuration (Required)
+#### TOML Configuration (Required)
 
 All connector configuration must be defined in a TOML file:
 
@@ -146,9 +118,24 @@ batch_size = 500
 flush_interval_ms = 2000
 ```
 
-See [config/](./config/) directory for complete examples.
+See [config/README.md](config/README.md) for complete examples and detailed documentation.
 
-## Schema Types
+## 🛠️ Development
+
+### Building
+
+```bash
+# Build release binary
+cargo build --release
+
+# Run tests
+cargo test
+
+# Build Docker image
+docker build -t danube/sink-surrealdb:latest .
+```
+
+### Schema Types
 
 The connector supports Danube's schema system for type-safe data handling:
 
@@ -207,7 +194,7 @@ schema_type = "Bytes"
 
 **Stored:** `{"data": "AQID", "size": 3}` (base64 encoded)
 
-## Storage Modes
+### Storage Modes
 
 The connector supports two storage modes for different use cases:
 
@@ -279,7 +266,7 @@ batch_size = 500
 - System logs with timestamps
 - Financial tick data
 
-## Metadata Enrichment
+### Metadata Enrichment
 
 Optionally include Danube metadata for audit trails:
 
@@ -309,7 +296,7 @@ include_danube_metadata = true
 - Data lineage
 
 
-## Record ID Management
+### Record ID Management
 
 ### Auto-Generated IDs (Default)
 
@@ -340,9 +327,9 @@ producer.send(payload, Some(attributes)).await?;
 - Easy lookups
 - Natural keys from source systems
 
-## Performance Tuning
+### Performance Tuning
 
-### Batch Size
+#### Batch Size
 
 Control throughput vs latency:
 
@@ -361,7 +348,7 @@ flush_interval_ms = 100
 - **Real-time analytics**: `batch_size = 50-100`
 - **Transactional data**: `batch_size = 10-20`
 
-### Connection Protocol
+#### Connection Protocol
 
 Use WebSocket for better performance:
 
@@ -370,7 +357,7 @@ url = "ws://surrealdb:8000"  # Recommended
 # url = "http://surrealdb:8000"  # HTTP fallback
 ```
 
-### Per-Topic Optimization
+#### Per-Topic Optimization
 
 Different topics can have different performance profiles:
 
@@ -388,9 +375,9 @@ batch_size = 10
 flush_interval_ms = 100
 ```
 
-## Monitoring
+### Monitoring
 
-### Prometheus Metrics
+#### Prometheus Metrics
 
 The connector exposes metrics on port `9090` (configurable):
 
@@ -405,7 +392,7 @@ curl http://localhost:9090/metrics
 - `danube_connector_batch_size` - Current batch size histogram
 - `danube_connector_flush_duration_seconds` - Flush duration histogram
 
-### Health Checks
+#### Health Checks
 
 Check connector health:
 
@@ -417,110 +404,22 @@ curl http://localhost:9090/health
 docker logs -f surrealdb-sink
 ```
 
-## SurrealDB Integration
+## 📚 Documentation
 
-### Query Inserted Data
+### Complete Working Example
 
-```sql
--- Get all events
-SELECT * FROM events;
+See **[examples/sink-surrealdb](../../examples/sink-surrealdb)** for a complete setup with:
+- Docker Compose (Danube + ETCD + SurrealDB)
+- Test producers using danube-cli
+- Single and multi-topic configurations
+- Query examples and monitoring
 
--- Query with metadata
-SELECT * FROM events 
-WHERE _danube_metadata.danube_topic = '/events/user' 
-ORDER BY _danube_metadata.danube_timestamp DESC 
-LIMIT 10;
+### Configuration Examples
 
--- Use custom record IDs
-SELECT * FROM events:order-12345;
-```
+- **[config/connector.toml](config/connector.toml)** - Fully documented reference configuration
+- **[config/README.md](config/README.md)** - Complete configuration guide
 
-### Graph Relationships
-
-Build relationships from event streams:
-
-```sql
--- Create user and event relationship
-RELATE user:$user_id->generated->events:$event_id 
-SET timestamp = time::now();
-```
-
-### Time-Series Queries
-
-Leverage SurrealDB's time-series capabilities:
-
-```sql
-SELECT 
-  time::group(_danube_metadata.danube_timestamp, '1h') AS hour,
-  count() AS event_count
-FROM events
-WHERE event_type = 'login'
-GROUP BY hour
-ORDER BY hour DESC;
-```
-
-## Troubleshooting
-
-### Connection Errors
-
-**Symptom:** `Failed to connect to SurrealDB`
-
-**Solutions:**
-- Verify SurrealDB is running: `docker ps | grep surrealdb`
-- Check URL format: `ws://host:port` or `http://host:port`
-- Test connection: `surreal sql --endpoint ws://localhost:8000`
-
-### Authentication Errors
-
-**Symptom:** `SurrealDB authentication failed`
-
-**Solutions:**
-- Verify credentials are correct
-- Check namespace/database permissions
-- Ensure user has write access to target tables
-
-### Batch Insert Failures
-
-**Symptom:** `Failed to insert record`
-
-**Solutions:**
-- Check SurrealDB logs for schema validation errors
-- Verify record ID uniqueness if using `record_id_field`
-- Ensure payload is valid JSON
-
-### Performance Issues
-
-**Symptom:** High latency or lag
-
-**Solutions:**
-- Increase `batch_size` for better throughput
-- Use WebSocket protocol (`ws://`) instead of HTTP
-- Monitor SurrealDB resource usage
-- Consider sharding across multiple connector instances
-
-## Examples
-
-See the [examples/](../../examples/) directory for complete examples:
-
-- **Single Topic** - Simple event streaming
-- **Multi-Topic** - Multiple topics to different tables
-- **Graph Events** - Building relationship graphs
-- **Time-Series** - IoT sensor data streaming
-
-## Building
-
-```bash
-# Build release binary
-cargo build --release
-
-# Run tests
-cargo test
-
-# Build Docker image
-docker build -t danube/sink-surrealdb:latest .
-```
-
-## Architecture
+### Architecture
 
 ```
 ┌─────────────────┐
@@ -547,20 +446,7 @@ docker build -t danube/sink-surrealdb:latest .
 └─────────────────┘
 ```
 
-## Contributing
-
-Contributions are welcome! Please see the main [danube-connect](https://github.com/danrusei/danube-connect) repository.
-
-## License
-
-Licensed under either of:
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE))
-- MIT License ([LICENSE-MIT](../../LICENSE-MIT))
-
-at your option.
-
-## Resources
+### References
 
 - [SurrealDB Documentation](https://surrealdb.com/docs)
 - [Danube Broker](https://github.com/danrusei/danube)

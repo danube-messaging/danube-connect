@@ -2,7 +2,7 @@
 
 High-performance sink connector for streaming vector embeddings from Danube to Qdrant. Perfect for building RAG (Retrieval Augmented Generation) pipelines and AI-powered search applications.
 
-## Features
+## ✨ Features
 
 - 🚀 **Native Rust** - Built with qdrant-client for maximum performance
 - 🎯 **Multi-Topic Routing** - Route multiple Danube topics to different Qdrant collections
@@ -13,45 +13,36 @@ High-performance sink connector for streaming vector embeddings from Danube to Q
 - ⚡ **High Throughput** - Async processing with connection pooling and independent collection batching
 - 🛡️ **Robust Error Handling** - Early validation, retry logic, and graceful degradation
 
-## Quick Start
+## 🚀 Quick Start
 
-### Configuration File (Required)
-
-All connector configuration must be in a TOML file. Create a configuration file based on the templates in [`config/`](config/):
+### Running with Docker
 
 ```bash
-# Copy and customize a reference configuration
-cp config/connector.toml my-config.toml
-
-# Edit for your environment
-vim my-config.toml
-
-# Run with configuration file
-export CONNECTOR_CONFIG_PATH=my-config.toml
-cargo run --release
+docker run -d \
+  --name qdrant-sink \
+  -v $(pwd)/connector.toml:/etc/connector.toml:ro \
+  -e CONNECTOR_CONFIG_PATH=/etc/connector.toml \
+  -e DANUBE_SERVICE_URL=http://danube-broker:6650 \
+  -e CONNECTOR_NAME=qdrant-sink \
+  -e QDRANT_URL=http://qdrant:6334 \
+  -e QDRANT_API_KEY=${QDRANT_API_KEY} \
+  danube/sink-qdrant:latest
 ```
 
-### Environment Variable Overrides
+**Note:** All structural configuration (topics, collections, dimensions, batching) must be in `connector.toml`. See [Configuration](#configuration) section below.
 
-Only secrets and connection URLs can be overridden:
+### Complete Example
 
-```bash
-# Required: Path to config file
-export CONNECTOR_CONFIG_PATH=./config/connector.toml
+For a complete working setup with Docker Compose, embedding generation, and test data:
 
-# Optional: Override for different environments
-export DANUBE_SERVICE_URL=http://localhost:6650
-export CONNECTOR_NAME=qdrant-sink-1
-export QDRANT_URL=http://localhost:6334
+👉 **See [examples/sink-qdrant](../../examples/sink-qdrant/README.md)**
 
-# Optional: Secrets (don't put in TOML)
-export QDRANT_API_KEY=your-api-key
-
-# Run
-cargo run --release
-```
-
-**Note:** Topic mappings, dimensions, batch sizes, and other structural configuration must be in the TOML file.
+The example includes:
+- Docker Compose setup (Danube + ETCD + Qdrant)
+- Pre-configured connector.toml
+- Embedding generation scripts
+- Test producers using danube-cli
+- Query and search examples
 
 ## Message Format
 
@@ -75,7 +66,7 @@ The connector expects JSON messages with vector embeddings:
 }
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 ### 📖 Complete Configuration Guide
 
@@ -122,7 +113,9 @@ distance = "Cosine"
 
 See [config/README.md](config/README.md) for more patterns.
 
-## Building
+## 🛠️ Development
+
+### Building
 
 ### Local Build
 
@@ -136,9 +129,9 @@ cargo build --release
 docker build -t danube-sink-qdrant:latest .
 ```
 
-## Running
+### Running
 
-### With Cargo
+#### With Cargo
 
 ```bash
 # Run with configuration file
@@ -153,7 +146,7 @@ export QDRANT_API_KEY=your-api-key
 cargo run --release
 ```
 
-### With Docker
+#### With Docker
 
 ```bash
 docker run -d \
@@ -169,9 +162,9 @@ docker run -d \
 
 **Note:** All structural configuration (topics, collections, dimensions, batching) must be in `connector.toml`.
 
-## Monitoring
+### Monitoring
 
-### Prometheus Metrics
+#### Prometheus Metrics
 
 The connector exposes metrics on port 9090:
 
@@ -185,7 +178,7 @@ curl http://localhost:9090/metrics
 - `danube_connector_batch_size` - Current batch sizes
 - `danube_connector_processing_duration_seconds` - Processing latency
 
-### Logs
+#### Logs
 
 Configure log level with `RUST_LOG`:
 
@@ -199,9 +192,9 @@ RUST_LOG=debug,danube_sink_qdrant=trace cargo run
 
 **Log levels:**  `error`, `warn`, `info`, `debug`, `trace`
 
-## Troubleshooting
+### Troubleshooting
 
-### Vector Dimension Mismatch
+#### Vector Dimension Mismatch
 
 **Error:** `Vector dimension mismatch: expected 384, got 1536`
 
@@ -210,7 +203,7 @@ RUST_LOG=debug,danube_sink_qdrant=trace cargo run
 - `all-mpnet-base-v2`: 768
 - `text-embedding-ada-002`: 1536
 
-### Collection Not Found
+#### Collection Not Found
 
 **Error:** `Collection 'my_vectors' does not exist`
 
@@ -218,7 +211,7 @@ RUST_LOG=debug,danube_sink_qdrant=trace cargo run
 1. Enable auto-creation in config: `auto_create_collection = true`
 2. Create collection manually (see [config/README.md](config/README.md))
 
-### Connection Issues
+#### Connection Issues
 
 **Error:** `Failed to connect to Qdrant`
 
@@ -227,7 +220,7 @@ RUST_LOG=debug,danube_sink_qdrant=trace cargo run
 - ✅ Using gRPC port (6334), not HTTP port (6333)
 - ✅ URL format: `http://localhost:6334` (not `https://` for local)
 
-### Invalid Messages
+#### Invalid Messages
 
 **Error:** `Failed to parse message as JSON`
 
@@ -238,7 +231,7 @@ RUST_LOG=debug,danube_sink_qdrant=trace cargo run
 
 For more troubleshooting, see the [configuration guide](config/README.md).
 
-## Examples
+## 📚 Documentation
 
 ### Complete Working Example
 
@@ -254,7 +247,7 @@ See **[examples/sink-qdrant](../../examples/sink-qdrant)** for a complete setup 
 - **[config/connector.toml](config/connector.toml)** - Single-topic reference
 - **[config/connector-multi-topic.toml](config/connector-multi-topic.toml)** - Multi-topic advanced setup
 
-## Multi-Topic Routing
+### Multi-Topic Routing
 
 The connector supports routing multiple Danube topics to different Qdrant collections with independent configurations.
 
@@ -265,7 +258,7 @@ The connector supports routing multiple Danube topics to different Qdrant collec
 - ✅ Performance tuning → Per-collection batch settings
 - ✅ Independent batching → No cross-collection blocking
 
-## References
+### References
 
 - **[Configuration Guide](config/README.md)** - Complete configuration reference
 - **[Working Example](../../examples/sink-qdrant)** - Docker Compose setup

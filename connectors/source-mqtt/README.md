@@ -1,11 +1,20 @@
-# MQTT Source Connector for Danube Connect
+# MQTT Source Connector
 
 A high-performance MQTT source connector that bridges MQTT-based IoT devices with Danube Messaging. Subscribes to MQTT topics and publishes messages to Danube topics with full metadata preservation.
 
-## 📚 Documentation
+## ✨ Features
 
-- **[Quick Start & Testing](../../examples/source-mqtt/)** - Complete example setup with Docker Compose
-- **[Development Guide](./DEVELOPMENT.md)** - Build, test, and contribute to the connector
+- 🚀 **MQTT 3.1.1 Protocol** - Full support via rumqttc client
+- 🎯 **Wildcard Subscriptions** - `+` (single-level) and `#` (multi-level) patterns
+- 📊 **All QoS Levels** - QoS 0 (fire-and-forget), QoS 1 (at-least-once), QoS 2 (exactly-once)
+- 🔄 **Flexible Topic Routing** - Multiple MQTT patterns → Danube topics with per-topic configuration
+- 📝 **Metadata Preservation** - MQTT attributes (topic, QoS, retain, dup) as message attributes
+- 📦 **Partitioned Topics** - Per-topic partition configuration for parallel processing
+- 🛡️ **Reliable Dispatch** - Automatic QoS-based reliable delivery to Danube
+- 🔐 **Authentication** - Username/password and TLS support
+- ⚡ **High Performance** - Async I/O with TCP_NODELAY enabled
+
+**Use Cases:** Industrial IoT, smart devices, edge computing, sensor networks, fleet management
 
 ## 🚀 Quick Start
 
@@ -26,63 +35,32 @@ docker run -d \
 
 **Note:** All structural configuration (topic mappings, QoS, partitions) must be in `connector.toml`. See [Configuration](#configuration) section below.
 
-### Running from Source
+### Complete Example
 
-```bash
-# Clone the repository
-cd connectors/source-mqtt
+For a complete working setup with Docker Compose, MQTT broker, test publishers, and step-by-step guide:
 
-# Build the connector
-cargo build --release
+👉 **See [examples/source-mqtt](../../examples/source-mqtt/README.md)**
 
-# Run with configuration file
-CONNECTOR_CONFIG_PATH=/path/to/connector.toml ./target/release/danube-source-mqtt
-```
-
-**Want to see it in action?** Check out the [integration testing example](../../examples/source-mqtt/) with a complete Docker Compose setup including MQTT broker, Danube, and sample data publishers.
-
-## ✨ Features
-
-- ✅ **MQTT 3.1.1 Protocol** - Full support via rumqttc client
-- ✅ **Wildcard Subscriptions** - `+` (single-level) and `#` (multi-level) patterns
-- ✅ **All QoS Levels** - QoS 0 (fire-and-forget), QoS 1 (at-least-once), QoS 2 (exactly-once)
-- ✅ **Flexible Topic Routing** - Multiple MQTT patterns → Danube topics with per-topic configuration
-- ✅ **Metadata Preservation** - MQTT attributes (topic, QoS, retain, dup) as message attributes
-- ✅ **Partitioned Topics** - Per-topic partition configuration for parallel processing
-- ✅ **Reliable Dispatch** - Automatic QoS-based reliable delivery to Danube
-- ✅ **Authentication** - Username/password and TLS support
-- ✅ **High Performance** - Async I/O with TCP_NODELAY enabled
-
-## 🔄 How It Works
-
-```
-MQTT Broker → Connector subscribes to topics → Routes to Danube topics
-                ↓                                        ↓
-       Topic pattern matching                   Message + Metadata
-         (wildcards supported)                  (MQTT attributes preserved)
-```
-
-**Message Flow:**
-1. Connector subscribes to configured MQTT topic patterns (e.g., `sensors/#`, `devices/+/telemetry`)
-2. Receives messages from MQTT broker via rumqttc client
-3. Matches MQTT topic against configured patterns (first match wins)
-4. Routes to corresponding Danube topic with:
-   - Original message payload
-   - MQTT metadata as attributes (`mqtt.topic`, `mqtt.qos`, `mqtt.retain`, etc.)
-   - Per-topic partition and reliability settings
-5. Commits offset after successful Danube publish
-
-**Use Cases:** Industrial IoT, smart devices, edge computing, sensor networks, fleet management
+The example includes:
+- Docker Compose setup (Danube + ETCD + Mosquitto MQTT)
+- Pre-configured connector.toml
+- Test message publishers
+- Consuming messages with danube-cli
 
 ## ⚙️ Configuration
 
-### TOML-First Approach
+### 📖 Complete Configuration Guide
 
-The connector uses **TOML configuration files** as the primary configuration source, with optional environment variable overrides.
+See **[config/README.md](config/README.md)** for comprehensive configuration documentation including:
+- Core and MQTT connection settings
+- Topic mapping patterns and wildcards
+- QoS levels and reliable dispatch
+- Environment variable reference
+- Configuration examples and best practices
 
-**Configuration priority:** `connector.toml` → Environment Variables (overrides)
+### 📄 Quick Reference
 
-### Minimal Configuration Example
+#### Minimal Configuration Example
 
 ```toml
 # connector.toml
@@ -109,27 +87,7 @@ qos = "AtLeastOnce"
 partitions = 2
 ```
 
-### Key Configuration Fields
-
-**Core Settings:**
-- `danube_service_url` - Danube broker URL (required)
-- `connector_name` - Unique connector identifier (required)
-
-**MQTT Settings:**
-- `mqtt.broker_host` - MQTT broker hostname (required)
-- `mqtt.broker_port` - MQTT broker port (default: 1883)
-- `mqtt.client_id` - MQTT client ID (required)
-- `mqtt.username` / `mqtt.password` - Authentication (optional)
-- `mqtt.use_tls` - Enable TLS (default: false)
-
-**Topic Mappings:**
-- `mqtt_topic` - MQTT pattern with wildcards (`sensors/#`, `devices/+/data`)
-- `danube_topic` - Target Danube topic (`/{namespace}/{topic}`)
-- `qos` - MQTT QoS: `"AtMostOnce"` (0), `"AtLeastOnce"` (1), `"ExactlyOnce"` (2)
-- `partitions` - Number of Danube topic partitions (0 = non-partitioned)
-- `reliable_dispatch` - Override QoS-based default (optional)
-
-### Environment Variable Overrides
+#### Environment Variable Overrides
 
 Environment variables can override **only secrets and connection URLs**:
 
@@ -145,26 +103,40 @@ Environment variables can override **only secrets and connection URLs**:
 | `MQTT_PASSWORD` | MQTT password (secret) | `${VAULT_PASSWORD}` |
 | `MQTT_USE_TLS` | Enable TLS | `true` |
 
-**NOT Supported via Environment Variables:**
-- Topic mappings (must be in TOML)
-- QoS levels (must be in TOML)
-- Partition configuration (must be in TOML)
-- Retry/processing settings (must be in TOML)
+See [config/README.md](config/README.md) for complete configuration documentation.
 
-**Why TOML?**
-- ✅ Single file contains all routing rules and settings
-- ✅ Version control friendly
-- ✅ Type-safe deserialization with validation
-- ✅ Self-documenting with inline comments
+## 🛠️ Development
 
-**When to use ENV vars:**
-- 🔐 Production secrets (passwords, API keys)
-- 🌍 Environment-specific URLs (dev/staging/prod)
-- ☸️ Kubernetes ConfigMaps + Secrets
+### Building
 
-See the [example configuration](../../examples/source-mqtt/connector.toml) for a complete reference.
+```bash
+# Build release binary
+cargo build --release
 
-## 📋 Message Attributes
+# Run tests
+cargo test
+
+# Build Docker image
+docker build -t danube/source-mqtt:latest .
+```
+
+### Running from Source
+
+```bash
+# Run with configuration file
+export CONNECTOR_CONFIG_PATH=config/connector.toml
+cargo run --release
+
+# With environment overrides
+export CONNECTOR_CONFIG_PATH=config/connector.toml
+export DANUBE_SERVICE_URL=http://localhost:6650
+export MQTT_BROKER_HOST=mosquitto
+export MQTT_USERNAME=user
+export MQTT_PASSWORD=password
+cargo run --release
+```
+
+### Message Attributes
 
 Each message published to Danube includes MQTT metadata as attributes:
 
@@ -180,33 +152,46 @@ Each message published to Danube includes MQTT metadata as attributes:
 
 These attributes are queryable in Danube consumers and useful for filtering, routing, and debugging.
 
-## 🧪 Testing
+## 📚 Documentation
 
-See the [integration testing example](../../examples/source-mqtt/) for:
-- Complete Docker Compose setup
-- MQTT broker + Danube + Connector
-- Sample message publishers
+### Complete Working Example
+
+See **[examples/source-mqtt](../../examples/source-mqtt)** for a complete setup with:
+- Docker Compose (Danube + ETCD + Mosquitto MQTT)
+- Test message publishers
 - Step-by-step testing guide
 - Consuming messages with danube-cli
 
-## 🛠️ Development
+### Configuration Examples
 
-See [DEVELOPMENT.md](./DEVELOPMENT.md) for:
-- Building from source
-- Running unit tests
-- Code structure
-- Contributing guidelines
+- **[config/connector.toml](config/connector.toml)** - Fully documented reference configuration
+- **[config/README.md](config/README.md)** - Complete configuration guide
 
-## 📄 License
+### How It Works
 
-Apache-2.0
+```
+MQTT Broker → Connector subscribes to topics → Routes to Danube topics
+                ↓                                        ↓
+       Topic pattern matching                   Message + Metadata
+         (wildcards supported)                  (MQTT attributes preserved)
+```
 
-## 🤝 Contributing
+**Message Flow:**
+1. Connector subscribes to configured MQTT topic patterns (e.g., `sensors/#`, `devices/+/telemetry`)
+2. Receives messages from MQTT broker via rumqttc client
+3. Matches MQTT topic against configured patterns (first match wins)
+4. Routes to corresponding Danube topic with metadata
+5. Commits offset after successful Danube publish
 
-Contributions welcome! See [DEVELOPMENT.md](./DEVELOPMENT.md) for development setup and guidelines.
+### References
 
-## 🔗 Built With
+- **[Configuration Guide](config/README.md)** - Complete configuration reference
+- **[Working Example](../../examples/source-mqtt)** - Docker Compose setup
+- **[Development Guide](./DEVELOPMENT.md)** - Build, test, and contribute
+- [MQTT 3.1.1 Specification](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/mqtt-v3.1.1.html)
+- [rumqttc Client](https://github.com/bytebeamio/rumqtt)
+- [Danube Messaging](https://github.com/danrusei/danube)
 
-- [rumqttc](https://github.com/bytebeamio/rumqtt) - MQTT 3.1.1 client library
-- [Danube Messaging](https://github.com/danube-messaging/danube) - High-performance messaging platform
-- [tokio](https://tokio.rs) - Async runtime for Rust
+## License
+
+Apache License 2.0 - See [LICENSE](../../LICENSE)
