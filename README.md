@@ -72,21 +72,24 @@ cargo new --bin sink-mydb
 
 ### Sink Connectors (Danube → External)
 
-| Connector | Status | Description |
-|-----------|--------|-------------|
-| HTTP/Webhook | 🚧 Planned | Universal REST API integration |
-| ClickHouse | 🚧 Planned | Real-time analytics ingestion |
-| PostgreSQL | 🚧 Planned | Relational database sink |
-| Elasticsearch | 🚧 Planned | Search and analytics |
+| Connector | Status | Description | Documentation |
+|-----------|--------|-------------|---------------|
+| [Qdrant](./connectors/sink-qdrant/) | ✅ Production | Vector embeddings for RAG/AI | [README](./connectors/sink-qdrant/README.md) |
+| [SurrealDB](./connectors/sink-surrealdb/) | ✅ Production | Multi-model database (documents, time-series) | [README](./connectors/sink-surrealdb/README.md) |
+| Delta Lake | 🚧 Planned | Zero-JVM data lake ingestion (S3/Azure/GCS) | - |
+| LanceDB | 🚧 Planned | Serverless vector DB for RAG pipelines | - |
+| ClickHouse | 🚧 Planned | Real-time analytics and feature stores | - |
+| GreptimeDB | 🚧 Planned | Unified observability (metrics/logs/traces) | - |
 
 ### Source Connectors (External → Danube)
 
-| Connector | Status | Description |
-|-----------|--------|-------------|
-| MQTT | ✅ Example | IoT device integration ([see example](./examples/source-mqtt/)) |
-| PostgreSQL CDC | 🚧 Planned | Change Data Capture |
-| File/Directory | 🚧 Planned | File system monitoring |
-| Kafka | 🚧 Planned | Kafka topic mirroring |
+| Connector | Status | Description | Documentation |
+|-----------|--------|-------------|---------------|
+| [MQTT](./connectors/source-mqtt/) | ✅ Production | IoT device integration (MQTT 3.1.1) | [README](./connectors/source-mqtt/README.md) |
+| HTTP/Webhook | 🚧 Planned | Universal webhook ingestion from SaaS platforms | - |
+| PostgreSQL CDC | 🚧 Planned | Change Data Capture from Postgres | - |
+
+**See [Connector Roadmap](./info/connector-roadmap.md) for detailed implementation plans and timelines.**
 
 
 ## Documentation
