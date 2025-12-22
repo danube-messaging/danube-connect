@@ -63,9 +63,9 @@ connector_name = "qdrant-sink-1"
 danube_service_url = "http://localhost:6650"
 ```
 
-**Environment Variables:**
-- `CONNECTOR_NAME`
-- `DANUBE_SERVICE_URL`
+**Environment Variable Overrides:**
+- `DANUBE_SERVICE_URL` - Override for different environments
+- `CONNECTOR_NAME` - Override for different deployments
 
 ---
 
@@ -83,10 +83,7 @@ retry_backoff_ms = 1000
 max_backoff_ms = 30000
 ```
 
-**Environment Variables:**
-- `RETRY_MAX_RETRIES`
-- `RETRY_BACKOFF_MS`
-- `RETRY_MAX_BACKOFF_MS`
+**Note:** Retry settings must be configured in the TOML file. They are NOT available as environment variables.
 
 **Behavior:**
 - Exponential backoff: `backoff = min(retry_backoff_ms * 2^attempt, max_backoff_ms)`
@@ -115,12 +112,7 @@ metrics_port = 9090
 log_level = "info"
 ```
 
-**Environment Variables:**
-- `PROCESSING_BATCH_SIZE`
-- `PROCESSING_BATCH_TIMEOUT_MS`
-- `PROCESSING_POLL_INTERVAL_MS`
-- `PROCESSING_METRICS_PORT`
-- `PROCESSING_LOG_LEVEL`
+**Note:** Processing settings must be configured in the TOML file. They are NOT available as environment variables.
 
 ---
 
@@ -143,10 +135,9 @@ api_key = "your-api-key"
 timeout_secs = 30
 ```
 
-**Environment Variables:**
-- `QDRANT_URL` - Qdrant server URL
-- `QDRANT_API_KEY` - API key for authentication
-- `QDRANT_TIMEOUT_SECS` - Operation timeout
+**Environment Variable Overrides:**
+- `QDRANT_URL` - Override Qdrant server URL (for different environments)
+- `QDRANT_API_KEY` - API key for authentication (secret, should NOT be in TOML)
 
 **Important:** Use the **gRPC port** (6334), not HTTP port (6333).
 
@@ -163,9 +154,7 @@ batch_size = 50
 batch_timeout_ms = 1000
 ```
 
-**Environment Variables:**
-- `QDRANT_BATCH_SIZE`
-- `QDRANT_BATCH_TIMEOUT_MS`
+**Note:** Batch settings must be configured in the TOML file. They are NOT available as environment variables.
 
 **Behavior:**
 - Batches are flushed when reaching `batch_size` OR `batch_timeout_ms`
@@ -303,46 +292,70 @@ batch_timeout_ms = 500  # Override global default
 
 ## Environment Variables
 
-### Single-Topic Configuration (Backward Compatible)
+### Configuration File (Required)
 
-For simple single-topic setups, use environment variables:
+The connector requires a TOML configuration file:
 
 ```bash
-# Core Configuration
-export DANUBE_SERVICE_URL=http://localhost:6650
-export CONNECTOR_NAME=qdrant-sink-1
-
-# Qdrant Connection
-export QDRANT_URL=http://localhost:6334
-export QDRANT_API_KEY=your-api-key  # Optional
-
-# Single Topic Mapping
-export QDRANT_TOPIC=/default/vectors
-export QDRANT_SUBSCRIPTION=qdrant-sink-sub
-export QDRANT_COLLECTION=my_vectors
-export QDRANT_VECTOR_DIMENSION=384
-
-# Optional Settings
-export QDRANT_DISTANCE=Cosine
-export QDRANT_BATCH_SIZE=100
-export QDRANT_BATCH_TIMEOUT_MS=1000
-export QDRANT_AUTO_CREATE_COLLECTION=true
-export QDRANT_INCLUDE_DANUBE_METADATA=true
+export CONNECTOR_CONFIG_PATH=/path/to/connector.toml
 ```
 
-**Limitations:**
-- ❌ Only supports **one** topic mapping
-- ❌ Cannot configure multiple collections
-- ✅ Good for simple use cases
-- ✅ Easy to deploy with Docker
+**All structural configuration must be in the TOML file:**
+- Topic mappings
+- Collection settings
+- Vector dimensions
+- Batch sizes
+- Retry settings
+- Processing settings
 
-### Multi-Topic Configuration
+### Environment Variable Overrides
 
-For multiple topic mappings, **you must use a TOML configuration file**. Environment variables only support single-topic mode.
+Environment variables can override **only secrets and connection URLs**:
 
 ```bash
-export CONFIG_FILE=/app/config.toml
-# Mount connector-multi-topic.toml as /app/config.toml
+# Required: Path to TOML config file
+export CONNECTOR_CONFIG_PATH=/etc/connector.toml
+
+# Optional: Core Danube overrides (for different environments)
+export DANUBE_SERVICE_URL=http://danube-broker:6650
+export CONNECTOR_NAME=qdrant-sink-production
+
+# Optional: Qdrant connection overrides
+export QDRANT_URL=http://qdrant:6334
+
+# Optional: Secrets (should NOT be in TOML file)
+export QDRANT_API_KEY=your-api-key
+```
+
+**Supported Environment Variables:**
+
+| Variable | Purpose | Example |
+|----------|---------|----------|
+| `CONNECTOR_CONFIG_PATH` | Path to TOML config (required) | `/etc/connector.toml` |
+| `DANUBE_SERVICE_URL` | Override Danube broker URL | `http://prod-broker:6650` |
+| `CONNECTOR_NAME` | Override connector name | `qdrant-sink-prod` |
+| `QDRANT_URL` | Override Qdrant URL | `https://cluster.qdrant.io:6334` |
+| `QDRANT_API_KEY` | Qdrant API key (secret) | `your-api-key` |
+
+### Docker Deployment Example
+
+```yaml
+services:
+  qdrant-sink:
+    image: danube-sink-qdrant
+    volumes:
+      - ./connector.toml:/etc/connector.toml:ro
+    environment:
+      # Required
+      - CONNECTOR_CONFIG_PATH=/etc/connector.toml
+      
+      # Optional: Core overrides
+      - DANUBE_SERVICE_URL=http://danube-broker:6650
+      - CONNECTOR_NAME=qdrant-sink-example
+      
+      # Optional: Qdrant overrides
+      - QDRANT_URL=http://qdrant:6334
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
 ```
 
 ---

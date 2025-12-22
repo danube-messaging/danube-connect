@@ -60,11 +60,12 @@ metrics_port = 9090
 
 ### Environment Variable Overrides
 
-| Variable | TOML Key | Default |
+| Variable | TOML Key | Purpose |
 |----------|----------|---------|
-| `CONNECTOR_NAME` | `connector_name` | `surrealdb-sink` |
-| `DANUBE_SERVICE_URL` | `danube_service_url` | `http://localhost:6650` |
-| `METRICS_PORT` | `metrics_port` | `9090` |
+| `CONNECTOR_NAME` | `connector_name` | Override for different deployments |
+| `DANUBE_SERVICE_URL` | `danube_service_url` | Override for different environments |
+
+**Note:** `metrics_port` must be configured in the TOML file.
 
 ## SurrealDB Connection
 
@@ -132,13 +133,13 @@ database = "app_database"
 
 ### Environment Variable Overrides
 
-| Variable | TOML Key | Default |
-|----------|----------|---------|
-| `SURREALDB_URL` | `surrealdb.url` | `ws://localhost:8000` |
-| `SURREALDB_NAMESPACE` | `surrealdb.namespace` | `default` |
-| `SURREALDB_DATABASE` | `surrealdb.database` | `default` |
-| `SURREALDB_USERNAME` | `surrealdb.username` | - |
-| `SURREALDB_PASSWORD` | `surrealdb.password` | - |
+| Variable | TOML Key | Purpose |
+|----------|----------|----------|
+| `SURREALDB_URL` | `surrealdb.url` | Override for different environments |
+| `SURREALDB_USERNAME` | `surrealdb.username` | Secret - should NOT be in TOML |
+| `SURREALDB_PASSWORD` | `surrealdb.password` | Secret - should NOT be in TOML |
+
+**Note:** `namespace`, `database`, and timeout settings must be configured in the TOML file.
 
 ## Topic Mappings
 
@@ -221,15 +222,7 @@ include_danube_metadata = true  # Default: true
 - Event ordering
 - Data lineage
 
-### Environment Variables (Secrets & URLs Only)
-
-| Variable | Purpose | Example |
-|----------|---------|----------|
-| `CONNECTOR_CONFIG_PATH` | Path to TOML config | `config/connector.toml` |
-| `SURREALDB_URL` | Override database URL | `ws://prod-db:8000` |
-| `SURREALDB_USERNAME` | Database username (secret) | `admin` |
-| `SURREALDB_PASSWORD` | Database password (secret) | `***` |
-| `DANUBE_SERVICE_URL` | Override broker URL | `http://prod-broker:6650` |
+**Note:** See [Environment Variables](#environment-variables) section for complete reference.
 
 ## Storage Modes
 
@@ -419,33 +412,58 @@ flush_interval_ms = 1000
 
 ## Environment Variables
 
-### Complete Environment Variable Reference
+### Configuration File (Required)
 
-**Core:**
-- `CONNECTOR_NAME` - Connector instance name
-- `DANUBE_SERVICE_URL` - Danube broker URL
-- `METRICS_PORT` - Prometheus metrics port
+The connector requires a TOML configuration file:
 
-**SurrealDB:**
-- `SURREALDB_URL` - SurrealDB connection URL
-- `SURREALDB_NAMESPACE` - SurrealDB namespace
-- `SURREALDB_DATABASE` - SurrealDB database
-- `SURREALDB_USERNAME` - Optional username
-- `SURREALDB_PASSWORD` - Optional password
-- `SURREALDB_CONNECTION_TIMEOUT_SECS` - Connection timeout
-- `SURREALDB_REQUEST_TIMEOUT_SECS` - Request timeout
+```bash
+export CONNECTOR_CONFIG_PATH=/path/to/connector.toml
+```
 
-**Topic Mapping (Single Topic Only):**
-- `SURREALDB_TOPIC` - Danube topic
-- `SURREALDB_SUBSCRIPTION` - Subscription name
-- `SURREALDB_TABLE` - SurrealDB table name
-- `SURREALDB_RECORD_ID_FIELD` - Payload field for record ID
-- `SURREALDB_INCLUDE_METADATA` - Include Danube metadata
-- `SURREALDB_BATCH_SIZE` - Batch size
-- `SURREALDB_FLUSH_INTERVAL_MS` - Flush interval
-- `SURREALDB_FLATTEN_PAYLOAD` - Flatten nested objects
+**All structural configuration must be in the TOML file:**
+- Topic mappings
+- Table names
+- Schema types
+- Batch sizes
+- Storage modes
+- Metadata settings
 
-**Note:** For multi-topic configurations, use a TOML file.
+### Supported Environment Variables
+
+Environment variables can override **only secrets and connection URLs**:
+
+| Variable | Purpose | Example |
+|----------|---------|----------|
+| `CONNECTOR_CONFIG_PATH` | Path to TOML config (required) | `/etc/connector.toml` |
+| `DANUBE_SERVICE_URL` | Override Danube broker URL | `http://prod-broker:6650` |
+| `CONNECTOR_NAME` | Override connector name | `surrealdb-sink-prod` |
+| `SURREALDB_URL` | Override SurrealDB URL | `ws://prod-db:8000` |
+| `SURREALDB_USERNAME` | Database username (secret) | `admin` |
+| `SURREALDB_PASSWORD` | Database password (secret) | `***` |
+
+### Docker Deployment Example
+
+```yaml
+services:
+  surrealdb-sink:
+    image: danube-sink-surrealdb
+    volumes:
+      - ./connector.toml:/etc/connector.toml:ro
+    environment:
+      # Required
+      - CONNECTOR_CONFIG_PATH=/etc/connector.toml
+      
+      # Optional: Core overrides
+      - DANUBE_SERVICE_URL=http://danube-broker:6650
+      - CONNECTOR_NAME=surrealdb-sink-example
+      
+      # Optional: SurrealDB overrides
+      - SURREALDB_URL=ws://surrealdb:8000
+      
+      # Optional: Secrets
+      - SURREALDB_USERNAME=${DB_USERNAME}
+      - SURREALDB_PASSWORD=${DB_PASSWORD}
+```
 
 ## Performance Tuning
 
