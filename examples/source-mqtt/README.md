@@ -112,6 +112,36 @@ To verify messages are reaching Danube, consume them using **danube-cli**.
 - GitHub Releases: https://github.com/danube-messaging/danube/releases
 - Documentation: https://danube-docs.dev-state.com/danube_clis/danube_cli/consumer/
 
+**danube-cli** (for sending/receiving messages to Danube):
+
+Download the latest release for your system from [Danube Releases](https://github.com/danube-messaging/danube/releases):
+
+```bash
+# Linux
+wget https://github.com/danube-messaging/danube/releases/download/v0.5.2/danube-cli-linux
+chmod +x danube-cli-linux
+
+# macOS (Apple Silicon)
+wget https://github.com/danube-messaging/danube/releases/download/v0.5.2/danube-cli-macos
+chmod +x danube-cli-macos
+
+# Windows
+# Download danube-cli-windows.exe from the releases page
+```
+
+**Note:** The `test_producer.sh` script automatically detects `danube-cli-linux`, `danube-cli-macos`, or `danube-cli` in the current directory, so you don't need to install it system-wide.
+
+**Available platforms:**
+- Linux: `danube-cli-linux`
+- macOS (Apple Silicon): `danube-cli-macos`
+- Windows: `danube-cli-windows.exe`
+
+Or use the Docker image:
+```bash
+docker pull ghcr.io/danube-messaging/danube-cli:v0.5.2
+```
+
+
 **Topic Mappings (MQTT → Danube):**
 
 The connector routes MQTT messages to Danube topics based on `connector.toml`:
@@ -147,12 +177,6 @@ danube-cli consume \
   --service-addr http://localhost:6650 \
   --topic /iot/temperature \
   --subscription temp-sub
-
-# Consume debug messages
-danube-cli consume \
-  -s http://localhost:6650 \
-  -t /iot/debug \
-  -m debug-sub
 
 # With exclusive subscription (only one consumer receives messages)
 danube-cli consume \

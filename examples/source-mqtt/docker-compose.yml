@@ -127,7 +127,7 @@ services:
       # - MQTT_PASSWORD=secret123
 
       # Logging configuration
-      - RUST_LOG=info,danube_source_mqtt=debug
+      - RUST_LOG=info,danube_source_mqtt=info
     networks:
       - danube-mqtt-network
     restart: unless-stopped
