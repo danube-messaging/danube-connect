@@ -93,11 +93,12 @@ cargo new --bin sink-mydb
 
 Complete documentation is available in the `info/` directory:
 
-- **[Start Here: Documentation Index](./info/CONNECTORS_README.md)** - Overview and navigation
-- **[Development Guide](./info/connector-development-guide.md)** - Build your first connector
-- **[Configuration Guide](./info/UNIFIED_CONFIGURATION_GUIDE.md)** - Configuration patterns and best practices
-- **[Message Patterns](./info/connector-message-patterns.md)** - Message handling strategies
+- **[Start Here: Documentation Index](./info/README.md)** - Overview and navigation
 - **[Architecture Document](./info/connectors.md)** - Design philosophy and specifications
+- **[Development Guide](./info/connector-development-guide.md)** - Build your first connector
+- **[Configuration Guide](./info/unified-configuration-guide.md)** - Configuration patterns and best practices
+- **[Message Patterns](./info/connector-message-patterns.md)** - Message handling strategies
+
 
 ## Building from Source
 

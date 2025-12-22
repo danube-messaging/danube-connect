@@ -17,7 +17,7 @@ cd connectors/source-mqtt
 cargo build --release
 
 # Run with configuration file
-CONFIG_FILE=/path/to/connector.toml ./target/release/danube-source-mqtt
+CONNECTOR_CONFIG_PATH=/path/to/connector.toml ./target/release/danube-source-mqtt
 ```
 
 **Want to see it in action?** Check out the [integration testing example](../../examples/source-mqtt/) with a complete Docker Compose setup including MQTT broker, Danube, and sample data publishers.

@@ -118,26 +118,22 @@ services:
         condition: service_completed_successfully
       qdrant:
         condition: service_healthy
+    volumes:
+      # Mount the connector configuration file
+      - ./connector.toml:/etc/connector.toml:ro
     environment:
-      # Danube Configuration
+      # Configuration file path (required)
+      - CONNECTOR_CONFIG_PATH=/etc/connector.toml
+
+      # Core Danube settings (override values in connector.toml)
       - DANUBE_SERVICE_URL=http://danube-broker:6650
       - CONNECTOR_NAME=qdrant-sink-example
 
-      # Qdrant Configuration
+      # Qdrant connection (override for different environments)
       - QDRANT_URL=http://qdrant:6334
 
-      # Topic Mapping (required for single-topic mode)
-      - QDRANT_TOPIC=/default/vectors
-      - QDRANT_SUBSCRIPTION=qdrant-sink-sub
-      - QDRANT_COLLECTION=vectors
-      - QDRANT_VECTOR_DIMENSION=384 # sentence-transformers/all-MiniLM-L6-v2
-
-      # Optional Settings
-      - QDRANT_DISTANCE=Cosine
-      - QDRANT_BATCH_SIZE=50
-      - QDRANT_BATCH_TIMEOUT_MS=1000
-      - QDRANT_AUTO_CREATE_COLLECTION=true
-      - QDRANT_INCLUDE_DANUBE_METADATA=true
+      # Secrets (if using Qdrant Cloud, uncomment and set)
+      # - QDRANT_API_KEY=${QDRANT_API_KEY}
 
       # Logging
       - RUST_LOG=info,danube_sink_qdrant=debug

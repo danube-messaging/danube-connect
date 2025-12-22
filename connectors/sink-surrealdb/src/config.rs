@@ -168,13 +168,20 @@ impl SurrealDBSinkConfig {
     /// Only overrides sensitive data that shouldn't be in config files:
     /// - Credentials (username, password)
     /// - Connection URLs (for different environments)
+    /// - Connector name (for different deployments)
     fn apply_env_overrides(&mut self) -> ConnectorResult<()> {
-        // Override connection URLs (for different environments: dev/staging/prod)
-        if let Ok(url) = env::var("SURREALDB_URL") {
-            self.surrealdb.url = url;
-        }
+        // Override core Danube settings (mandatory fields from danube-connect-core)
         if let Ok(danube_url) = env::var("DANUBE_SERVICE_URL") {
             self.core.danube_service_url = danube_url;
+        }
+        
+        if let Ok(connector_name) = env::var("CONNECTOR_NAME") {
+            self.core.connector_name = connector_name;
+        }
+
+        // Override SurrealDB connection URL (for different environments: dev/staging/prod)
+        if let Ok(url) = env::var("SURREALDB_URL") {
+            self.surrealdb.url = url;
         }
 
         // Override credentials (secrets should not be in config files)

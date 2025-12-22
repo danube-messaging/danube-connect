@@ -45,15 +45,17 @@ The SurrealDB Sink Connector enables real-time data streaming from Danube topics
 ```bash
 docker run -d \
   --name surrealdb-sink \
+  -v $(pwd)/connector.toml:/etc/connector.toml:ro \
+  -e CONNECTOR_CONFIG_PATH=/etc/connector.toml \
   -e DANUBE_SERVICE_URL=http://danube-broker:6650 \
+  -e CONNECTOR_NAME=surrealdb-sink \
   -e SURREALDB_URL=ws://surrealdb:8000 \
-  -e SURREALDB_NAMESPACE=default \
-  -e SURREALDB_DATABASE=default \
-  -e SURREALDB_TOPIC=/default/events \
-  -e SURREALDB_SUBSCRIPTION=surrealdb-sink \
-  -e SURREALDB_TABLE=events \
+  -e SURREALDB_USERNAME=root \
+  -e SURREALDB_PASSWORD=root \
   danube/sink-surrealdb:latest
 ```
+
+**Note:** All structural configuration (topics, tables, schema types, batching) must be in `connector.toml`. See [Configuration](#configuration) section below.
 
 ### Running from Source
 
@@ -65,13 +67,14 @@ cd danube-connect/connectors/sink-surrealdb
 # Build
 cargo build --release
 
-# Run with environment variables
+# Create/edit connector.toml configuration file (see Configuration section)
+# Then run with config file and optional environment overrides
+export CONNECTOR_CONFIG_PATH=./config/connector.toml
 export DANUBE_SERVICE_URL=http://localhost:6650
+export CONNECTOR_NAME=surrealdb-sink
 export SURREALDB_URL=ws://localhost:8000
-export SURREALDB_NAMESPACE=default
-export SURREALDB_DATABASE=default
-export SURREALDB_TOPIC=/default/events
-export SURREALDB_SUBSCRIPTION=surrealdb-sink
+export SURREALDB_USERNAME=root
+export SURREALDB_PASSWORD=root
 export SURREALDB_TABLE=events
 
 ./target/release/danube-sink-surrealdb
@@ -97,10 +100,11 @@ Environment variables are used **only for secrets and connection URLs** that var
 | Variable | Description | Use Case |
 |----------|-------------|----------|
 | `CONNECTOR_CONFIG_PATH` | Path to TOML config file | **Required** |
+| `DANUBE_SERVICE_URL` | Danube broker URL | Override for different environments |
+| `CONNECTOR_NAME` | Unique connector name | Override for different deployments |
 | `SURREALDB_URL` | SurrealDB connection URL | Override for different environments (dev/staging/prod) |
 | `SURREALDB_USERNAME` | Database username | **Secrets** - should not be in config files |
 | `SURREALDB_PASSWORD` | Database password | **Secrets** - should not be in config files |
-| `DANUBE_SERVICE_URL` | Danube broker URL | Override for different environments |
 
 **All other configuration (topics, tables, schema types, batching) must be in the TOML file.**
 

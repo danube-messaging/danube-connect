@@ -7,14 +7,14 @@
 #   2. MQTT connector-specific settings (under [mqtt] section)
 #
 # Usage:
-#   export CONFIG_FILE=/path/to/connector.toml
-#   docker run -v ./connector.toml:/etc/config.toml:ro \
-#              -e CONFIG_FILE=/etc/config.toml \
+#   export CONNECTOR_CONFIG_PATH=/path/to/connector.toml
+#   docker run -v ./connector.toml:/etc/connector.toml:ro \
+#              -e CONNECTOR_CONFIG_PATH=/etc/connector.toml \
 #              mqtt-connector
 #
 # ENV Variable Overrides:
-#   Any setting can be overridden with environment variables
-#   Example: MQTT_BROKER_HOST=prod-mqtt DANUBE_SERVICE_URL=http://prod:6650
+#   Only secrets and connection URLs can be overridden with environment variables
+#   Example: MQTT_PASSWORD=secret DANUBE_SERVICE_URL=http://prod:6650
 #
 # =============================================================================
 
@@ -131,28 +131,32 @@ partitions = 0               # Non-partitioned
 # ============================================================================
 # Environment Variable Overrides
 # ============================================================================
-# Only mandatory fields can be overridden with environment variables:
+# Environment variables are used ONLY for secrets and environment-specific values:
 #
-# Mandatory Core settings (from env):
-#   DANUBE_SERVICE_URL=http://broker:6650  # Danube broker URL
-#   CONNECTOR_NAME=my-connector            # Unique connector identifier
+# Required:
+#   CONNECTOR_CONFIG_PATH=/etc/connector.toml  # Path to this config file
 #
-# Processing and retry settings:
-#   These should be configured in this TOML file under [retry] and [processing]
-#   sections. They are NOT read from environment variables for clarity and
-#   to prevent configuration sprawl.
+# Core Danube settings (optional overrides):
+#   DANUBE_SERVICE_URL=http://broker:6650     # Override broker URL for different environments
+#   CONNECTOR_NAME=my-connector               # Override connector name for different deployments
 #
-# MQTT connector settings (from env):
-#   MQTT_BROKER_HOST=mosquitto
-#   MQTT_BROKER_PORT=1883
-#   MQTT_CLIENT_ID=connector-1
-#   MQTT_USERNAME=user
-#   MQTT_PASSWORD=pass
-#   MQTT_USE_TLS=true
+# MQTT connection settings (optional overrides):
+#   MQTT_BROKER_HOST=mosquitto                # Override broker host (dev/staging/prod)
+#   MQTT_BROKER_PORT=1883                     # Override broker port
+#   MQTT_CLIENT_ID=connector-1                # Override client ID
+#   MQTT_USERNAME=user                        # Secret - should NOT be in TOML
+#   MQTT_PASSWORD=pass                        # Secret - should NOT be in TOML
+#   MQTT_USE_TLS=true                         # Override TLS setting
+#
+# NOT supported via environment variables:
+#   - Topic mappings (must be in TOML)
+#   - Retry settings (must be in TOML)
+#   - Processing settings (must be in TOML)
+#   - Connection parameters (keep_alive, timeouts, etc. - must be in TOML)
 #
 # This design is especially useful for:
 # - Secrets (passwords, tokens) in production via env vars
 # - Deployment-specific URLs via env vars
-# - Static configuration (retry, processing) in version-controlled TOML
+# - Static configuration (retry, processing, topics) in version-controlled TOML
 # - Kubernetes ConfigMaps (TOML file) and Secrets (env vars)
 # ============================================================================

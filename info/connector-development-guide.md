@@ -113,18 +113,32 @@ pub struct MyConnectorConfig {
 ```rust
 impl MyConnectorConfig {
     pub fn load() -> ConnectorResult<Self> {
-        // Try TOML file first
-        let mut config = if let Ok(file) = env::var("CONFIG_FILE") {
-            Self::from_file(&file)?
-        } else {
-            Self::from_env()?
-        };
+        // Load from TOML file (path from CONNECTOR_CONFIG_PATH env var)
+        let config_path = env::var("CONNECTOR_CONFIG_PATH")
+            .map_err(|_| ConnectorError::config(
+                "CONNECTOR_CONFIG_PATH environment variable must be set"
+            ))?;
         
-        // Apply ENV overrides (for secrets)
+        let mut config = Self::from_file(&config_path)?;
+        
+        // Apply ENV overrides (for secrets and environment-specific values)
         config.core.apply_env_overrides();
         config.my_connector.apply_env_overrides();
         
         Ok(config)
+    }
+    
+    fn apply_env_overrides(&mut self) {
+        // Core Danube settings (mandatory fields)
+        if let Ok(url) = env::var("DANUBE_SERVICE_URL") {
+            self.core.danube_service_url = url;
+        }
+        if let Ok(name) = env::var("CONNECTOR_NAME") {
+            self.core.connector_name = name;
+        }
+        
+        // Connector-specific overrides (secrets, URLs)
+        // ... your connector's env var overrides
     }
 }
 ```
@@ -167,8 +181,8 @@ pub trait SinkConnector {
 **Example pattern:**
 ```rust
 async fn initialize(&mut self, _config: ConnectorConfig) -> ConnectorResult<()> {
-    // Load your config
-    self.config = MyConfig::from_env()?;
+    // Config is already loaded in main.rs via MyConnectorConfig::load()
+    // Just validate connector-specific settings if needed
     self.config.validate()?;
     
     // Connect to external system
@@ -717,10 +731,18 @@ ENTRYPOINT ["my-connector"]
 services:
   my-connector:
     image: my-connector:latest
-    environment:
-      CONFIG_FILE: /app/config.toml
     volumes:
-      - ./config.toml:/app/config.toml:ro
+      - ./connector.toml:/etc/connector.toml:ro
+    environment:
+      # Required: Config file path
+      - CONNECTOR_CONFIG_PATH=/etc/connector.toml
+      
+      # Optional: Core Danube overrides
+      - DANUBE_SERVICE_URL=http://danube-broker:6650
+      - CONNECTOR_NAME=my-connector
+      
+      # Optional: Connector-specific overrides (secrets, URLs)
+      - MY_CONNECTOR_API_KEY=${API_KEY}
 ```
 
 **See:** `examples/source-mqtt/docker-compose.yml` for complete setup
@@ -730,9 +752,12 @@ services:
 ## Best Practices
 
 ### 1. Configuration
-- Validate early (in `initialize()`)
-- Use ENV vars for secrets, TOML for structure
-- Provide sensible defaults
+- Load config in `main.rs` before creating connector (via `MyConnectorConfig::load()`)
+- Validate early (call `config.validate()` before starting runtime)
+- Use TOML for structure, ENV vars only for secrets and environment-specific overrides
+- Required ENV var: `CONNECTOR_CONFIG_PATH` (path to TOML file)
+- Optional ENV overrides: `DANUBE_SERVICE_URL`, `CONNECTOR_NAME`, connector-specific secrets
+- Provide sensible defaults in TOML
 - Fail fast on misconfiguration
 
 ### 2. Error Handling

@@ -20,9 +20,10 @@ pub struct MqttSourceConfig {
 }
 
 impl MqttSourceConfig {
-    /// Load configuration from a single TOML file with optional ENV overrides
+    /// Load configuration from TOML file
     ///
-    /// Priority: TOML file → Environment variables
+    /// The config file path must be specified via CONNECTOR_CONFIG_PATH environment variable.
+    /// Environment variables can override secrets (username, password) and connection URLs.
     ///
     /// # Example
     ///
@@ -36,17 +37,15 @@ impl MqttSourceConfig {
     /// # ... mqtt settings
     /// ```
     pub fn load() -> ConnectorResult<Self> {
-        // Try to load from file first
-        let mut config = if let Ok(config_file) = env::var("CONFIG_FILE") {
-            Self::from_file(&config_file)?
-        } else {
-            // Fallback to environment variables
-            Self::from_env()?
-        };
+        let config_path = env::var("CONNECTOR_CONFIG_PATH")
+            .map_err(|_| danube_connect_core::ConnectorError::config(
+                "CONNECTOR_CONFIG_PATH environment variable must be set to the path of the TOML configuration file"
+            ))?;
+        
+        let mut config = Self::from_file(&config_path)?;
 
-        // Apply environment variable overrides
-        config.core.apply_env_overrides();
-        config.mqtt.apply_env_overrides();
+        // Apply environment variable overrides for secrets and connection details
+        config.apply_env_overrides();
 
         Ok(config)
     }
@@ -68,12 +67,51 @@ impl MqttSourceConfig {
         })
     }
 
-    /// Load configuration from environment variables
-    pub fn from_env() -> ConnectorResult<Self> {
-        Ok(Self {
-            core: ConnectorConfig::from_env()?,
-            mqtt: MqttConfig::from_env()?,
-        })
+    /// Apply environment variable overrides for secrets and connection details
+    /// 
+    /// Only overrides sensitive data that shouldn't be in config files:
+    /// - Credentials (username, password)
+    /// - Connection URLs (for different environments)
+    /// - Connector name (for different deployments)
+    fn apply_env_overrides(&mut self) {
+        // Override core Danube settings (mandatory fields from danube-connect-core)
+        if let Ok(danube_url) = env::var("DANUBE_SERVICE_URL") {
+            self.core.danube_service_url = danube_url;
+        }
+        
+        if let Ok(connector_name) = env::var("CONNECTOR_NAME") {
+            self.core.connector_name = connector_name;
+        }
+
+        // Override MQTT connection settings
+        if let Ok(host) = env::var("MQTT_BROKER_HOST") {
+            self.mqtt.broker_host = host;
+        }
+        
+        if let Ok(port) = env::var("MQTT_BROKER_PORT") {
+            if let Ok(p) = port.parse() {
+                self.mqtt.broker_port = p;
+            }
+        }
+        
+        if let Ok(client_id) = env::var("MQTT_CLIENT_ID") {
+            self.mqtt.client_id = client_id;
+        }
+
+        // Override credentials (secrets should not be in config files)
+        if let Ok(username) = env::var("MQTT_USERNAME") {
+            self.mqtt.username = Some(username);
+        }
+        
+        if let Ok(password) = env::var("MQTT_PASSWORD") {
+            self.mqtt.password = Some(password);
+        }
+        
+        if let Ok(use_tls) = env::var("MQTT_USE_TLS") {
+            if let Ok(b) = use_tls.parse() {
+                self.mqtt.use_tls = b;
+            }
+        }
     }
 
     /// Validate all configuration
@@ -157,158 +195,6 @@ fn default_true() -> bool {
 }
 
 impl MqttConfig {
-    /// Load configuration from environment variables
-    ///
-    /// Environment variables:
-    /// - `MQTT_BROKER_HOST`: Required, MQTT broker hostname
-    /// - `MQTT_BROKER_PORT`: Optional, broker port (default: 1883)
-    /// - `MQTT_CLIENT_ID`: Required, client identifier
-    /// - `MQTT_USERNAME`: Optional, authentication username
-    /// - `MQTT_PASSWORD`: Optional, authentication password
-    /// - `MQTT_USE_TLS`: Optional, enable TLS (default: false)
-    /// - `MQTT_TOPICS`: Required, comma-separated MQTT topics to subscribe
-    /// - `MQTT_DANUBE_TOPIC`: Optional, target Danube topic (uses MQTT topic if not set)
-    /// - `MQTT_QOS`: Optional, QoS level 0-2 (default: 1)
-    pub fn from_env() -> ConnectorResult<Self> {
-        let broker_host = std::env::var("MQTT_BROKER_HOST").map_err(|_| {
-            danube_connect_core::ConnectorError::config("MQTT_BROKER_HOST is required")
-        })?;
-
-        let broker_port = std::env::var("MQTT_BROKER_PORT")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(1883);
-
-        let client_id = std::env::var("MQTT_CLIENT_ID").map_err(|_| {
-            danube_connect_core::ConnectorError::config("MQTT_CLIENT_ID is required")
-        })?;
-
-        let username = std::env::var("MQTT_USERNAME").ok();
-        let password = std::env::var("MQTT_PASSWORD").ok();
-
-        let use_tls = std::env::var("MQTT_USE_TLS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(false);
-
-        let keep_alive_secs = std::env::var("MQTT_KEEP_ALIVE_SECS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(60);
-
-        let connection_timeout_secs = std::env::var("MQTT_CONNECTION_TIMEOUT_SECS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(30);
-
-        let max_packet_size = std::env::var("MQTT_MAX_PACKET_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(10 * 1024 * 1024);
-
-        let clean_session = std::env::var("MQTT_CLEAN_SESSION")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(true);
-
-        let include_metadata = std::env::var("MQTT_INCLUDE_METADATA")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(true);
-
-        let tcp_nodelay = std::env::var("MQTT_TCP_NODELAY")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(true);
-
-        // Parse topic mappings
-        let mqtt_topics = std::env::var("MQTT_TOPICS")
-            .map_err(|_| danube_connect_core::ConnectorError::config("MQTT_TOPICS is required"))?;
-
-        let danube_topic = std::env::var("MQTT_DANUBE_TOPIC").ok();
-
-        let qos_level = std::env::var("MQTT_QOS")
-            .ok()
-            .and_then(|s| s.parse::<u8>().ok())
-            .unwrap_or(1);
-
-        let qos = match qos_level {
-            0 => QoS::AtMostOnce,
-            1 => QoS::AtLeastOnce,
-            2 => QoS::ExactlyOnce,
-            _ => QoS::AtLeastOnce,
-        };
-
-        // Create topic mappings
-        let topic_mappings: Vec<TopicMapping> = mqtt_topics
-            .split(',')
-            .map(|topic| {
-                let mqtt_topic = topic.trim().to_string();
-                let danube_topic = danube_topic.clone().unwrap_or_else(|| {
-                    format!(
-                        "/mqtt{}",
-                        mqtt_topic.replace('#', "all").replace('+', "any")
-                    )
-                });
-
-                TopicMapping {
-                    mqtt_topic,
-                    danube_topic,
-                    qos,
-                    partitions: 0, // Default: non-partitioned when loading from ENV
-                    reliable_dispatch: None, // Will use QoS-based default
-                }
-            })
-            .collect();
-
-        if topic_mappings.is_empty() {
-            return Err(danube_connect_core::ConnectorError::config(
-                "At least one topic mapping is required",
-            ));
-        }
-
-        Ok(Self {
-            broker_host,
-            broker_port,
-            client_id,
-            username,
-            password,
-            use_tls,
-            keep_alive_secs,
-            connection_timeout_secs,
-            max_packet_size,
-            topic_mappings,
-            clean_session,
-            include_metadata,
-            tcp_nodelay,
-        })
-    }
-
-    /// Apply environment variable overrides to MQTT configuration
-    pub fn apply_env_overrides(&mut self) {
-        if let Ok(val) = env::var("MQTT_BROKER_HOST") {
-            self.broker_host = val;
-        }
-        if let Ok(val) = env::var("MQTT_BROKER_PORT") {
-            if let Ok(port) = val.parse() {
-                self.broker_port = port;
-            }
-        }
-        if let Ok(val) = env::var("MQTT_CLIENT_ID") {
-            self.client_id = val;
-        }
-        if let Ok(val) = env::var("MQTT_USERNAME") {
-            self.username = Some(val);
-        }
-        if let Ok(val) = env::var("MQTT_PASSWORD") {
-            self.password = Some(val);
-        }
-        if let Ok(val) = env::var("MQTT_USE_TLS") {
-            if let Ok(b) = val.parse() {
-                self.use_tls = b;
-            }
-        }
-    }
 
     /// Validate the configuration
     pub fn validate(&self) -> ConnectorResult<()> {
