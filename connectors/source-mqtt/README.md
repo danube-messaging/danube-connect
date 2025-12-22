@@ -9,6 +9,25 @@ A high-performance MQTT source connector that bridges MQTT-based IoT devices wit
 
 ## 🚀 Quick Start
 
+### Running with Docker
+
+```bash
+docker run -d \
+  --name mqtt-source \
+  -v $(pwd)/connector.toml:/etc/connector.toml:ro \
+  -e CONNECTOR_CONFIG_PATH=/etc/connector.toml \
+  -e DANUBE_SERVICE_URL=http://danube-broker:6650 \
+  -e CONNECTOR_NAME=mqtt-source \
+  -e MQTT_BROKER_HOST=mosquitto \
+  -e MQTT_USERNAME=user \
+  -e MQTT_PASSWORD=password \
+  danube/source-mqtt:latest
+```
+
+**Note:** All structural configuration (topic mappings, QoS, partitions) must be in `connector.toml`. See [Configuration](#configuration) section below.
+
+### Running from Source
+
 ```bash
 # Clone the repository
 cd connectors/source-mqtt
@@ -112,15 +131,25 @@ partitions = 2
 
 ### Environment Variable Overrides
 
-Optionally override TOML settings:
+Environment variables can override **only secrets and connection URLs**:
 
 | Variable | Description | Example |
+|----------|-------------|---------|
+| `CONNECTOR_CONFIG_PATH` | Path to TOML config (required) | `/etc/connector.toml` |
 | `DANUBE_SERVICE_URL` | Override Danube broker URL | `http://prod-broker:6650` |
 | `CONNECTOR_NAME` | Override connector name | `mqtt-production` |
-| `MQTT_BROKER_HOST` | Override MQTT broker | `prod-mqtt.internal` |
-| `MQTT_USERNAME` | MQTT username | `prod_user` |
-| `MQTT_PASSWORD` | MQTT password (secrets) | `${VAULT_PASSWORD}` |
-| `RUST_LOG` | Logging configuration | `info,danube_source_mqtt=debug` |
+| `MQTT_BROKER_HOST` | Override MQTT broker host | `prod-mqtt.internal` |
+| `MQTT_BROKER_PORT` | Override MQTT broker port | `1883` |
+| `MQTT_CLIENT_ID` | Override MQTT client ID | `mqtt-prod-1` |
+| `MQTT_USERNAME` | MQTT username (secret) | `prod_user` |
+| `MQTT_PASSWORD` | MQTT password (secret) | `${VAULT_PASSWORD}` |
+| `MQTT_USE_TLS` | Enable TLS | `true` |
+
+**NOT Supported via Environment Variables:**
+- Topic mappings (must be in TOML)
+- QoS levels (must be in TOML)
+- Partition configuration (must be in TOML)
+- Retry/processing settings (must be in TOML)
 
 **Why TOML?**
 - ✅ Single file contains all routing rules and settings

@@ -138,24 +138,30 @@ include_danube_metadata = true
 # batch_timeout_ms = 500
 
 # ============================================================================
-# NOTES
+# USAGE & ENVIRONMENT VARIABLES
 # ============================================================================
 #
+# Running the Connector:
+#   CONNECTOR_CONFIG_PATH=/path/to/connector.toml danube-sink-qdrant
+#
 # Environment Variable Overrides:
-# You can override any configuration value with environment variables:
-# - DANUBE_SERVICE_URL
-# - CONNECTOR_NAME
-# - QDRANT_URL
-# - QDRANT_API_KEY
-# - QDRANT_TOPIC (for single-topic setups)
-# - QDRANT_SUBSCRIPTION
-# - QDRANT_COLLECTION
-# - QDRANT_VECTOR_DIMENSION
-# - QDRANT_DISTANCE
-# - QDRANT_BATCH_SIZE
-# - QDRANT_BATCH_TIMEOUT_MS
-# - QDRANT_AUTO_CREATE_COLLECTION
-# - QDRANT_INCLUDE_DANUBE_METADATA
+# Only secrets and connection URLs can be overridden with environment variables.
+# All structural configuration (topic mappings, dimensions, batch sizes, etc.)
+# must be in this TOML file.
+#
+# Supported Environment Variables:
+#   CONNECTOR_CONFIG_PATH=/etc/connector.toml  # Required: path to this file
+#   DANUBE_SERVICE_URL=http://broker:6650     # Optional: override broker URL
+#   CONNECTOR_NAME=qdrant-sink-prod           # Optional: override connector name
+#   QDRANT_URL=http://qdrant:6334             # Optional: override Qdrant URL
+#   QDRANT_API_KEY=your-api-key               # Optional: secret (don't put in TOML)
+#
+# NOT Supported via Environment Variables:
+#   - Topic mappings (must be in TOML)
+#   - Collection names, dimensions, distance metrics (must be in TOML)
+#   - Batch sizes and timeouts (must be in TOML)
+#   - Retry settings (must be in TOML)
+#   - Processing settings (must be in TOML)
 #
 # Multi-Topic Configuration:
 # To route multiple Danube topics to different Qdrant collections,
@@ -172,6 +178,14 @@ include_danube_metadata = true
 #     "metadata": "any JSON value"
 #   }
 # }
+#
+# Docker Deployment Example:
+#   docker run -v ./connector.toml:/etc/connector.toml:ro \
+#     -e CONNECTOR_CONFIG_PATH=/etc/connector.toml \
+#     -e DANUBE_SERVICE_URL=http://danube-broker:6650 \
+#     -e QDRANT_URL=http://qdrant:6334 \
+#     -e QDRANT_API_KEY=${QDRANT_API_KEY} \
+#     danube-sink-qdrant
 #
 # Documentation:
 # See config/README.md for detailed configuration guide

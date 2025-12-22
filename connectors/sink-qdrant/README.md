@@ -15,29 +15,9 @@ High-performance sink connector for streaming vector embeddings from Danube to Q
 
 ## Quick Start
 
-### Environment Variables (Simple Single-Topic Setup)
+### Configuration File (Required)
 
-```bash
-# Core Configuration
-export DANUBE_SERVICE_URL=http://localhost:6650
-export CONNECTOR_NAME=qdrant-sink-1
-
-# Qdrant Connection
-export QDRANT_URL=http://localhost:6334
-
-# Topic Mapping
-export QDRANT_TOPIC=/default/vectors
-export QDRANT_SUBSCRIPTION=qdrant-sink-sub
-export QDRANT_COLLECTION=my_vectors
-export QDRANT_VECTOR_DIMENSION=384
-
-# Run
-cargo run --release
-```
-
-### Configuration File (Recommended for Production & Multi-Topic)
-
-Create a configuration file based on the templates in [`config/`](config/):
+All connector configuration must be in a TOML file. Create a configuration file based on the templates in [`config/`](config/):
 
 ```bash
 # Copy and customize a reference configuration
@@ -47,9 +27,31 @@ cp config/connector.toml my-config.toml
 vim my-config.toml
 
 # Run with configuration file
-export CONFIG_FILE=my-config.toml
+export CONNECTOR_CONFIG_PATH=my-config.toml
 cargo run --release
 ```
+
+### Environment Variable Overrides
+
+Only secrets and connection URLs can be overridden:
+
+```bash
+# Required: Path to config file
+export CONNECTOR_CONFIG_PATH=./config/connector.toml
+
+# Optional: Override for different environments
+export DANUBE_SERVICE_URL=http://localhost:6650
+export CONNECTOR_NAME=qdrant-sink-1
+export QDRANT_URL=http://localhost:6334
+
+# Optional: Secrets (don't put in TOML)
+export QDRANT_API_KEY=your-api-key
+
+# Run
+cargo run --release
+```
+
+**Note:** Topic mappings, dimensions, batch sizes, and other structural configuration must be in the TOML file.
 
 ## Message Format
 
@@ -92,10 +94,14 @@ See **[config/README.md](config/README.md)** for comprehensive configuration doc
 ### 🎯 Common Use Cases
 
 **Single Collection (Simple RAG):**
-```bash
-QDRANT_TOPIC=/default/vectors
-QDRANT_COLLECTION=vectors
-QDRANT_VECTOR_DIMENSION=384
+```toml
+[[qdrant.topic_mappings]]
+topic = "/default/vectors"
+subscription = "qdrant-sink-sub"
+collection_name = "vectors"
+vector_dimension = 384
+distance = "Cosine"
+auto_create_collection = true
 ```
 
 **Multiple Collections (Advanced RAG):**
@@ -105,11 +111,13 @@ QDRANT_VECTOR_DIMENSION=384
 topic = "/chat/embeddings"
 collection_name = "chat_vectors"
 vector_dimension = 384
+distance = "Cosine"
 
 [[qdrant.topic_mappings]]
 topic = "/docs/embeddings"
 collection_name = "documentation"
 vector_dimension = 768
+distance = "Cosine"
 ```
 
 See [config/README.md](config/README.md) for more patterns.
@@ -133,37 +141,33 @@ docker build -t danube-sink-qdrant:latest .
 ### With Cargo
 
 ```bash
-# Using environment variables
-export DANUBE_SERVICE_URL=http://localhost:6650
-export QDRANT_URL=http://localhost:6334
-export QDRANT_TOPIC=/default/vectors
-export QDRANT_COLLECTION=vectors
-export QDRANT_VECTOR_DIMENSION=384
+# Run with configuration file
+export CONNECTOR_CONFIG_PATH=config/connector.toml
 cargo run --release
 
-# Or with configuration file
-export CONFIG_FILE=config/connector.toml
+# With environment overrides
+export CONNECTOR_CONFIG_PATH=config/connector.toml
+export DANUBE_SERVICE_URL=http://localhost:6650
+export QDRANT_URL=http://localhost:6334
+export QDRANT_API_KEY=your-api-key
 cargo run --release
 ```
 
 ### With Docker
 
 ```bash
-# Single topic (environment variables)
-docker run \
+docker run -d \
+  --name qdrant-sink \
+  -v $(pwd)/connector.toml:/etc/connector.toml:ro \
+  -e CONNECTOR_CONFIG_PATH=/etc/connector.toml \
   -e DANUBE_SERVICE_URL=http://danube-broker:6650 \
+  -e CONNECTOR_NAME=qdrant-sink \
   -e QDRANT_URL=http://qdrant:6334 \
-  -e QDRANT_TOPIC=/default/vectors \
-  -e QDRANT_COLLECTION=vectors \
-  -e QDRANT_VECTOR_DIMENSION=384 \
-  danube-sink-qdrant:latest
-
-# Multi-topic (configuration file)
-docker run \
-  -e CONFIG_FILE=/app/config.toml \
-  -v $(pwd)/config/connector-multi-topic.toml:/app/config.toml:ro \
+  -e QDRANT_API_KEY=${QDRANT_API_KEY} \
   danube-sink-qdrant:latest
 ```
+
+**Note:** All structural configuration (topics, collections, dimensions, batching) must be in `connector.toml`.
 
 ## Monitoring
 

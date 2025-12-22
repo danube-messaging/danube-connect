@@ -172,13 +172,21 @@ include_danube_metadata = true
 #
 # Docker:
 #   docker run \
-#     -e CONFIG_FILE=/app/config.toml \
-#     -v $(pwd)/connector-multi-topic.toml:/app/config.toml:ro \
+#     -v $(pwd)/connector-multi-topic.toml:/etc/connector.toml:ro \
+#     -e CONNECTOR_CONFIG_PATH=/etc/connector.toml \
+#     -e DANUBE_SERVICE_URL=http://danube-broker:6650 \
+#     -e QDRANT_URL=http://qdrant:6334 \
+#     -e QDRANT_API_KEY=${QDRANT_API_KEY} \
 #     danube-sink-qdrant:latest
 #
 # Cargo:
-#   export CONFIG_FILE=config/connector-multi-topic.toml
-#   cargo run --release
+#   CONNECTOR_CONFIG_PATH=config/connector-multi-topic.toml cargo run --release
+#
+# Environment Variable Overrides (optional):
+#   DANUBE_SERVICE_URL=http://broker:6650     # Override broker URL
+#   CONNECTOR_NAME=qdrant-sink-prod           # Override connector name
+#   QDRANT_URL=http://qdrant:6334             # Override Qdrant URL
+#   QDRANT_API_KEY=your-api-key               # Secret (don't put in TOML)
 #
 # The connector will:
 # 1. Create 5 separate consumers (one per topic)

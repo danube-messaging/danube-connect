@@ -75,7 +75,6 @@ export CONNECTOR_NAME=surrealdb-sink
 export SURREALDB_URL=ws://localhost:8000
 export SURREALDB_USERNAME=root
 export SURREALDB_PASSWORD=root
-export SURREALDB_TABLE=events
 
 ./target/release/danube-sink-surrealdb
 ```
