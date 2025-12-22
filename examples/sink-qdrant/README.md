@@ -387,16 +387,6 @@ environment:
   - QDRANT_BATCH_TIMEOUT_MS=100  # Frequent flushes
 ```
 
-### Monitor Performance
-
-```bash
-# Watch metrics in real-time
-watch -n 1 'curl -s http://localhost:9090/metrics | grep messages_processed'
-
-# Check Qdrant performance
-curl http://localhost:6333/metrics
-```
-
 ## Cleanup
 
 ```bash
