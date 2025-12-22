@@ -1,5 +1,6 @@
 # Build stage
-FROM rust:1.83 as builder
+# Using latest Rust to support edition2024 and async-graphql requirements (needs 1.86+)
+FROM rust:1.91 as builder
 
 # Install protobuf compiler (required for danube-core gRPC compilation)
 RUN apt-get update && apt-get install -y \

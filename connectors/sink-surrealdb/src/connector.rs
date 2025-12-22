@@ -142,18 +142,24 @@ impl SurrealDBSinkConnector {
         let records: Vec<_> = context.batch_buffer.drain(..).collect();
 
         for record in records {
+            // Convert serde_json::Value to a concrete type to avoid SurrealDB 2.x serialization issues
+            // See: https://github.com/surrealdb/surrealdb/issues/4921
+            let content: std::collections::HashMap<String, serde_json::Value> = 
+                serde_json::from_value(record.data.clone())
+                    .unwrap_or_else(|_| std::collections::HashMap::new());
+            
             let result = match &record.id {
                 Some(id) => {
                     // Insert with specific record ID
                     let thing = format!("{}:{}", table_name, id);
                     let res: Result<Option<serde_json::Value>, _> =
-                        client.create(thing).content(record.data).await;
+                        client.create(thing).content(content.clone()).await;
                     res.map_err(|e| (id.clone(), e))
                 }
                 None => {
                     // Auto-generate ID
                     let res: Result<Option<serde_json::Value>, _> =
-                        client.create(table_name).content(record.data).await;
+                        client.create(table_name).content(content).await;
                     res.map_err(|e| (String::from("auto"), e))
                 }
             };
