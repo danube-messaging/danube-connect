@@ -213,13 +213,12 @@ impl<C: SinkConnector> SinkRuntime<C> {
                 break;
             }
 
-            // Poll all message streams
             let mut has_activity = false;
 
             for consumer_stream in streams.iter_mut() {
-                // Non-blocking check for messages
+                // Non-blocking check for messages (short timeout to avoid accumulation)
                 match tokio::time::timeout(
-                    std::time::Duration::from_millis(100),
+                    std::time::Duration::from_millis(10),
                     consumer_stream.stream.recv(),
                 )
                 .await
@@ -263,9 +262,18 @@ impl<C: SinkConnector> SinkRuntime<C> {
                 }
             }
 
-            // If no activity, sleep briefly to avoid busy-waiting
+            // If no activity, check for pending flushes
             if !has_activity {
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                // Trigger periodic flush check for time-based flushing
+                // With 10ms timeout per stream, flush checks happen every ~(N×10ms + 100ms)
+                // where N is the number of consumer streams
+                if let Err(e) = self.connector.process_batch(vec![]).await {
+                    error!("Error during periodic flush check: {}", e);
+                }
+                
+                // Sleep 100ms between check cycles to maintain reasonable flush check frequency
+                // This ensures flush checks happen approximately every 100ms regardless of stream count
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         }
 

@@ -1,5 +1,5 @@
-# Build stage
-FROM rust:1.91 as builder
+# Build stage - use bookworm variant to match runtime
+FROM rust:1.91-bookworm as builder
 
 # Install protobuf compiler (required for danube-core gRPC compilation)
 RUN apt-get update && apt-get install -y \

@@ -3,7 +3,7 @@
 //! This connector streams events from Danube topics to Delta Lake tables,
 //! supporting S3, Azure Blob Storage, and Google Cloud Storage.
 
-use crate::config::{DeltaLakeSinkConfig, StorageBackend, TopicMapping, WriteMode};
+use crate::config::{DeltaLakeSinkConfig, StorageBackend, TopicMapping};
 use crate::record::to_record_batch;
 use async_trait::async_trait;
 use danube_connect_core::{
@@ -11,10 +11,10 @@ use danube_connect_core::{
     SubscriptionType,
 };
 use deltalake::operations::create::CreateBuilder;
-use deltalake::operations::write::WriteBuilder;
-use deltalake::{DeltaOps, DeltaTable, DeltaTableError};
+use deltalake::writer::{DeltaWriter, RecordBatchWriter};
+use deltalake::{DeltaTable, DeltaTableError};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 use url::Url;
 
@@ -26,10 +26,13 @@ pub struct DeltaLakeSinkConnector {
     config: DeltaLakeSinkConfig,
 
     /// Delta tables cache (table_path -> DeltaTable)
-    tables: HashMap<String, Arc<DeltaTable>>,
+    tables: HashMap<String, DeltaTable>,
 
     /// Record buffers per topic (for batching)
     buffers: HashMap<String, Vec<SinkRecord>>,
+
+    /// Last flush time per topic (for interval-based flushing)
+    last_flush_time: HashMap<String, Instant>,
 }
 
 impl DeltaLakeSinkConnector {
@@ -39,6 +42,7 @@ impl DeltaLakeSinkConnector {
             config,
             tables: HashMap::new(),
             buffers: HashMap::new(),
+            last_flush_time: HashMap::new(),
         }
     }
 
@@ -46,62 +50,51 @@ impl DeltaLakeSinkConnector {
     async fn get_or_create_table(
         &mut self,
         mapping: &TopicMapping,
-    ) -> ConnectorResult<Arc<DeltaTable>> {
-        // Check cache first
-        if let Some(table) = self.tables.get(&mapping.delta_table_path) {
-            return Ok(Arc::clone(table));
+    ) -> ConnectorResult<&mut DeltaTable> {
+        // Check if table already exists
+        if !self.tables.contains_key(&mapping.delta_table_path) {
+            info!("Opening Delta table at path: {}", mapping.delta_table_path);
+
+            // Configure storage options based on backend
+            let storage_options = self.build_storage_options()?;
+
+            // Parse table path as URL
+            let table_url = Url::parse(&mapping.delta_table_path).map_err(|e| {
+                ConnectorError::fatal(format!("Invalid Delta table path URL: {}", e))
+            })?;
+
+            // Try to open existing table or create new one
+            let table = match deltalake::open_table_with_storage_options(
+                table_url,
+                storage_options.clone(),
+            )
+            .await
+            {
+                Ok(table) => {
+                    info!("Loaded existing Delta table: {}", mapping.delta_table_path);
+                    table
+                }
+                Err(DeltaTableError::NotATable(_)) => {
+                    info!(
+                        "Table does not exist, creating new Delta table: {}",
+                        mapping.delta_table_path
+                    );
+                    self.create_table(mapping, storage_options).await?
+                }
+                Err(e) => {
+                    return Err(ConnectorError::fatal(format!(
+                        "Failed to open Delta table: {}",
+                        e
+                    )))
+                }
+            };
+
+            // Cache the table
+            self.tables.insert(mapping.delta_table_path.clone(), table);
         }
 
-        info!("Opening Delta table at path: {}", mapping.delta_table_path);
-
-        // Configure storage options based on backend
-        let storage_options = self.build_storage_options()?;
-
-        // Try to load existing table
-        let table_url = Url::parse(&mapping.delta_table_path)
-            .map_err(|e| ConnectorError::fatal(format!("Invalid Delta table path URL: {}", e)))?;
-
-        let table = match DeltaOps::try_from_uri_with_storage_options(
-            table_url.clone(),
-            storage_options.clone(),
-        )
-        .await
-        {
-            Ok(ops) => {
-                // DeltaOps is a tuple struct wrapping DeltaTable
-                let mut table = ops.0;
-                match table.load().await {
-                    Ok(_) => {
-                        info!("Loaded existing Delta table: {}", mapping.delta_table_path);
-                        table
-                    }
-                    Err(DeltaTableError::NotATable(_)) => {
-                        // Table doesn't exist, create it
-                        info!("Creating new Delta table: {}", mapping.delta_table_path);
-                        self.create_table(mapping, storage_options).await?
-                    }
-                    Err(e) => {
-                        return Err(ConnectorError::fatal(format!(
-                            "Failed to load Delta table: {}",
-                            e
-                        )))
-                    }
-                }
-            }
-            Err(e) => {
-                return Err(ConnectorError::fatal(format!(
-                    "Failed to connect to Delta table: {}",
-                    e
-                )))
-            }
-        };
-
-        // Cache the table
-        let table_arc = Arc::new(table);
-        self.tables
-            .insert(mapping.delta_table_path.clone(), Arc::clone(&table_arc));
-
-        Ok(table_arc)
+        // Return mutable reference to the table
+        Ok(self.tables.get_mut(&mapping.delta_table_path).unwrap())
     }
 
     /// Create a new Delta table with user-defined schema
@@ -205,27 +198,50 @@ impl DeltaLakeSinkConnector {
         // Convert records to Arrow RecordBatch
         let record_batch = to_record_batch(&records, mapping)?;
 
-        // Get or create Delta table
+        // Get or create the table
         let table = self.get_or_create_table(mapping).await?;
 
-        // Write to Delta Lake
-        let write_mode = match mapping.write_mode {
-            WriteMode::Append => deltalake::protocol::SaveMode::Append,
-            WriteMode::Overwrite => deltalake::protocol::SaveMode::Overwrite,
-        };
+        // Create a fresh writer for this write operation
+        // Note: RecordBatchWriter is not Sync, so we can't cache it
+        let mut writer = RecordBatchWriter::for_table(table).map_err(|e| {
+            ConnectorError::fatal_with_source(
+                format!(
+                    "Failed to create writer for Delta table: {}",
+                    mapping.delta_table_path
+                ),
+                e,
+            )
+        })?;
 
-        // Use table's log store for write operation
-        // Pass None for snapshot to let WriteBuilder load the latest state
-        let log_store = table.log_store();
-        let write_builder = WriteBuilder::new(log_store, None)
-            .with_input_batches(vec![record_batch])
-            .with_save_mode(write_mode);
-
-        // Execute write operation
-        let _version = write_builder.await.map_err(|e| {
+        // Write the record batch
+        writer.write(record_batch).await.map_err(|e| {
             ConnectorError::retryable_with_source(
                 format!(
-                    "Failed to write to Delta table: {}",
+                    "Failed to write batch to Delta table: {}",
+                    mapping.delta_table_path
+                ),
+                e,
+            )
+        })?;
+
+        // Flush and commit the write
+        let new_version = writer.flush_and_commit(table).await.map_err(|e| {
+            ConnectorError::retryable_with_source(
+                format!(
+                    "Failed to commit to Delta table: {}",
+                    mapping.delta_table_path
+                ),
+                e,
+            )
+        })?;
+
+        // CRITICAL: Reload the table to get the latest version
+        // The table reference is updated in place by flush_and_commit, but we should
+        // reload to ensure we have the latest state for subsequent writes
+        table.load().await.map_err(|e| {
+            ConnectorError::retryable_with_source(
+                format!(
+                    "Failed to reload Delta table after commit: {}",
                     mapping.delta_table_path
                 ),
                 e,
@@ -233,11 +249,63 @@ impl DeltaLakeSinkConnector {
         })?;
 
         info!(
-            "Successfully wrote {} records to Delta table: {}",
+            "Successfully wrote {} records to Delta table: {} (version: {})",
             records.len(),
-            mapping.delta_table_path
+            mapping.delta_table_path,
+            new_version
         );
 
+        Ok(())
+    }
+
+    /// Check flush intervals for all buffered topics and flush if needed
+    async fn check_and_flush_intervals(&mut self) -> ConnectorResult<()> {
+        let now = Instant::now();
+        let topics_to_check: Vec<String> = self.buffers.keys().cloned().collect();
+        
+        for topic in topics_to_check {
+            // Skip empty buffers
+            if let Some(buffer) = self.buffers.get(&topic) {
+                if buffer.is_empty() {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+            
+            // Get mapping and check flush interval
+            let mapping = match self
+                .config
+                .deltalake
+                .topic_mappings
+                .iter()
+                .find(|m| m.topic == topic)
+            {
+                Some(m) => m,
+                None => continue,
+            };
+            
+            let flush_interval_ms = mapping.effective_flush_interval_ms(self.config.deltalake.flush_interval_ms);
+            let flush_interval = Duration::from_millis(flush_interval_ms);
+            
+            // Check if flush interval has elapsed
+            if let Some(last_flush) = self.last_flush_time.get(&topic) {
+                let time_since_flush = now.duration_since(*last_flush);
+                
+                if time_since_flush >= flush_interval {
+                    let buffer_len = self.buffers.get(&topic).map(|b| b.len()).unwrap_or(0);
+                    debug!(
+                        "⏰ Periodic flush check: topic {} interval elapsed ({:.1}s >= {:.1}s), flushing {} records",
+                        topic,
+                        time_since_flush.as_secs_f64(),
+                        flush_interval.as_secs_f64(),
+                        buffer_len
+                    );
+                    self.flush_topic(&topic).await?;
+                }
+            }
+        }
+        
         Ok(())
     }
 
@@ -261,6 +329,9 @@ impl DeltaLakeSinkConnector {
                 })?;
 
             self.write_batch(&mapping, records).await?;
+            
+            // Update last flush time
+            self.last_flush_time.insert(topic.to_string(), Instant::now());
         }
 
         Ok(())
@@ -330,10 +401,23 @@ impl SinkConnector for DeltaLakeSinkConnector {
     }
 
     async fn process(&mut self, record: SinkRecord) -> ConnectorResult<()> {
+        debug!(
+            "🔵 process() called - topic: {}, offset: {}",
+            record.topic(),
+            record.offset()
+        );
+        
         // Add to buffer
         let topic = record.topic().to_string();
         let buffer = self.buffers.entry(topic.clone()).or_insert_with(Vec::new);
+        
+        // Initialize last flush time if this is the first message for this topic
+        let now = Instant::now();
+        self.last_flush_time.entry(topic.clone()).or_insert(now);
+        
         buffer.push(record);
+        
+        debug!("Buffer size for topic {}: {}", topic, buffer.len());
 
         // Check if we should flush
         let mapping = self
@@ -347,11 +431,28 @@ impl SinkConnector for DeltaLakeSinkConnector {
             })?;
 
         let batch_size = mapping.effective_batch_size(self.config.deltalake.batch_size);
-
-        if buffer.len() >= batch_size {
+        let flush_interval_ms = mapping.effective_flush_interval_ms(self.config.deltalake.flush_interval_ms);
+        let flush_interval = Duration::from_millis(flush_interval_ms);
+        
+        let last_flush = self.last_flush_time.get(&topic).unwrap();
+        let time_since_flush = now.duration_since(*last_flush);
+        
+        // Flush if batch size reached OR flush interval elapsed
+        let should_flush_size = buffer.len() >= batch_size;
+        let should_flush_time = !buffer.is_empty() && time_since_flush >= flush_interval;
+        
+        if should_flush_size {
             debug!(
-                "Batch size reached for topic {}, flushing {} records",
+                "Batch size reached for topic {} ({}/{}), flushing {} records",
+                topic, buffer.len(), batch_size, buffer.len()
+            );
+            self.flush_topic(&topic).await?;
+        } else if should_flush_time {
+            debug!(
+                "Flush interval reached for topic {} ({:.1}s >= {:.1}s), flushing {} records",
                 topic,
+                time_since_flush.as_secs_f64(),
+                flush_interval.as_secs_f64(),
                 buffer.len()
             );
             self.flush_topic(&topic).await?;
@@ -361,11 +462,12 @@ impl SinkConnector for DeltaLakeSinkConnector {
     }
 
     async fn process_batch(&mut self, records: Vec<SinkRecord>) -> ConnectorResult<()> {
+        // If empty batch, this is a periodic flush check (don't log to reduce noise)
         if records.is_empty() {
-            return Ok(());
+            return self.check_and_flush_intervals().await;
         }
 
-        debug!("Received {} records to write", records.len());
+        debug!("🟢 process_batch() called with {} records", records.len());
 
         // Group records by topic
         let mut by_topic: HashMap<String, Vec<SinkRecord>> = HashMap::new();
@@ -439,6 +541,18 @@ fn arrow_to_delta_type(arrow_type: &arrow::datatypes::DataType) -> deltalake::ke
             DeltaType::Primitive(PrimitiveType::Timestamp)
         }
         ArrowType::Date32 => DeltaType::Primitive(PrimitiveType::Date),
-        _ => DeltaType::Primitive(PrimitiveType::String), // Fallback
+        // Unsigned integers - convert to next larger signed type
+        ArrowType::UInt8 => DeltaType::Primitive(PrimitiveType::Short),
+        ArrowType::UInt16 => DeltaType::Primitive(PrimitiveType::Integer),
+        ArrowType::UInt32 => DeltaType::Primitive(PrimitiveType::Long),
+        ArrowType::UInt64 => DeltaType::Primitive(PrimitiveType::Long),
+        // Unsupported types - fail explicitly rather than silent conversion
+        unsupported => {
+            panic!(
+                "Unsupported Arrow type for Delta Lake: {:?}. \
+                 Please update your schema definition to use supported types.",
+                unsupported
+            )
+        }
     }
 }

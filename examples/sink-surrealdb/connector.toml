@@ -37,7 +37,7 @@ request_timeout_secs = 30
 
 # Global batch settings (can be overridden per topic)
 batch_size = 100
-flush_interval_ms = 1000
+flush_interval_ms = 3000
 
 # Topic Mapping: Danube topic → SurrealDB table
 # You can define multiple mappings to route different topics to different tables

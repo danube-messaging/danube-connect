@@ -15,16 +15,11 @@ categories = ["database", "network-programming"]
 danube-connect-core = { path = "../../danube-connect-core" }
 
 # Delta Lake (connector-specific) - All cloud providers enabled
-deltalake = { version = "0.29", features = ["s3", "azure", "gcs", "datafusion"] }
+# Note: datafusion feature NOT needed for basic append/overwrite operations
+deltalake = { version = "0.29", features = ["s3", "azure", "gcs"] }
 
 # Arrow ecosystem (must match deltalake's arrow version - 56.2 for deltalake 0.29)
 arrow = "56.2"
-arrow-schema = "56.2"
-arrow-json = "56.2"
-parquet = "56.2"
-
-# Object Storage
-object_store = "0.12"
 
 # Async Runtime
 tokio = { workspace = true }

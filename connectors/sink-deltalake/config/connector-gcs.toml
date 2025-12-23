@@ -16,9 +16,9 @@ gcp_project_id = "my-gcp-project"
 # GCP credentials from environment:
 # - GOOGLE_APPLICATION_CREDENTIALS (path to service account JSON file)
 
-# Global defaults
-batch_size = 1000
-flush_interval_ms = 5000
+# Global batch settings (can be overridden per topic)
+batch_size = 100           # Flush after 100 messages
+flush_interval_ms = 3000    # OR flush after 3 seconds (whichever comes first)
 
 #######################
 # Analytics Events Topic

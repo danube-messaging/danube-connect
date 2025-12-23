@@ -2,6 +2,8 @@
 
 Stream events from Danube into [Delta Lake](https://delta.io/) - the open-source storage framework that brings ACID transactions to data lakes. Built entirely in Rust for maximum performance and zero JVM overhead.
 
+**Note:** This connector is optimized for streaming ingestion with append/overwrite operations. It does **not** include the DataFusion query engine, keeping the binary size small and focused on high-performance data ingestion. For complex operations like merge/upsert, consider using Apache Spark or other Delta Lake tools.
+
 ## ✨ Features
 
 - ☁️ **Multi-Cloud Support** - AWS S3, Azure Blob Storage, Google Cloud Storage
@@ -246,7 +248,10 @@ Load data into Delta Lake as a staging layer for data warehouse pipelines.
 - **Throughput**: 10,000+ events/second per instance
 - **Latency**: Sub-second write latency with batching
 - **Memory**: ~50-100MB RAM (vs 2-4GB for JVM-based solutions)
+- **Binary Size**: ~15MB (no DataFusion dependency - append-only operations)
 - **Parquet**: Efficient columnar storage with compression
+
+**Note:** This connector uses basic append/overwrite operations without the DataFusion query engine, keeping the binary small and focused on streaming ingestion.
 
 ## 🔍 Troubleshooting
 
