@@ -74,8 +74,8 @@ cargo new --bin sink-mydb
 
 | Connector | Status | Description | Documentation |
 |-----------|--------|-------------|---------------|
-| [Qdrant](./connectors/sink-qdrant/) | ✅ Production | Vector embeddings for RAG/AI | [README](./connectors/sink-qdrant/README.md) |
-| [SurrealDB](./connectors/sink-surrealdb/) | ✅ Production | Multi-model database (documents, time-series) | [README](./connectors/sink-surrealdb/README.md) |
+| [Qdrant](./connectors/sink-qdrant/) | ✅ Available | Vector embeddings for RAG/AI | [README](./connectors/sink-qdrant/README.md) |
+| [SurrealDB](./connectors/sink-surrealdb/) | ✅ Available | Multi-model database (documents, time-series) | [README](./connectors/sink-surrealdb/README.md) |
 | Delta Lake | 🚧 Planned | Zero-JVM data lake ingestion (S3/Azure/GCS) | - |
 | LanceDB | 🚧 Planned | Serverless vector DB for RAG pipelines | - |
 | ClickHouse | 🚧 Planned | Real-time analytics and feature stores | - |
@@ -85,8 +85,8 @@ cargo new --bin sink-mydb
 
 | Connector | Status | Description | Documentation |
 |-----------|--------|-------------|---------------|
-| [MQTT](./connectors/source-mqtt/) | ✅ Production | IoT device integration (MQTT 3.1.1) | [README](./connectors/source-mqtt/README.md) |
-| HTTP/Webhook | 🚧 Planned | Universal webhook ingestion from SaaS platforms | - |
+| [MQTT](./connectors/source-mqtt/) | ✅ Available | IoT device integration (MQTT 3.1.1) | [README](./connectors/source-mqtt/README.md) |
+| [HTTP/Webhook](./connectors/source-webhook/) | ✅ Available | Universal webhook ingestion from SaaS platforms | [README](./connectors/source-webhook/README.md) |
 | PostgreSQL CDC | 🚧 Planned | Change Data Capture from Postgres | - |
 
 **See [Connector Roadmap](./info/connector-roadmap.md) for detailed implementation plans and timelines.**

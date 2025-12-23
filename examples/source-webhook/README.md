@@ -286,22 +286,81 @@ curl -X POST http://localhost:8080/webhooks/github/push \
 
 ## Consuming Messages from Danube
 
-To consume the webhook messages from Danube, you can use the Danube CLI or create a consumer application.
+To verify webhook messages are reaching Danube, consume them using **danube-cli**.
 
-### Using Danube CLI (if available)
+### Download danube-cli
+
+**GitHub Releases:** https://github.com/danube-messaging/danube/releases  
+**Documentation:** https://danube-docs.dev-state.com/danube_clis/danube_cli/consumer/
+
+Download the latest release for your system from [Danube Releases](https://github.com/danube-messaging/danube/releases):
 
 ```bash
-# Subscribe to Stripe payments
-danube-cli consumer subscribe \
-  --broker http://localhost:6650 \
-  --topic /stripe/payments \
-  --subscription webhook-consumer
+# Linux
+wget https://github.com/danube-messaging/danube/releases/download/v0.5.2/danube-cli-linux
+chmod +x danube-cli-linux
 
-# Subscribe to all GitHub events
-danube-cli consumer subscribe \
-  --broker http://localhost:6650 \
+# macOS (Apple Silicon)
+wget https://github.com/danube-messaging/danube/releases/download/v0.5.2/danube-cli-macos
+chmod +x danube-cli-macos
+
+# Windows
+# Download danube-cli-windows.exe from the releases page
+```
+
+**Available platforms:**
+- Linux: `danube-cli-linux`
+- macOS (Apple Silicon): `danube-cli-macos`
+- Windows: `danube-cli-windows.exe`
+
+Or use the Docker image:
+```bash
+docker pull ghcr.io/danube-messaging/danube-cli:v0.5.2
+```
+
+### Consume Webhook Messages
+
+**Topic Mappings (Webhook Endpoint → Danube):**
+
+The connector routes webhook requests to Danube topics based on `connector.toml`:
+
+| Webhook Endpoint | Danube Topic | Description |
+|-----------------|--------------|-------------|
+| `/webhooks/stripe/payments` | `/stripe/payments` | Stripe payment events (4 partitions, reliable) |
+| `/webhooks/github/push` | `/github/push` | GitHub push events (2 partitions, non-reliable) |
+| `/webhooks/generic` | `/webhooks/generic` | Generic webhooks (non-partitioned, reliable) |
+| `/webhooks/alerts` | `/webhooks/alerts` | Alert webhooks (non-partitioned, non-reliable) |
+
+**Consume messages from specific Danube topics:**
+
+```bash
+# Consume Stripe payment webhooks
+danube-cli consume \
+  --service-addr http://localhost:6650 \
+  --topic /stripe/payments \
+  --subscription stripe-sub
+
+# Consume GitHub push events
+danube-cli consume \
+  --service-addr http://localhost:6650 \
   --topic /github/push \
-  --subscription github-consumer
+  --subscription github-sub
+
+# Consume generic webhooks
+danube-cli consume \
+  --service-addr http://localhost:6650 \
+  --topic /webhooks/generic \
+  --subscription generic-sub
+
+# With exclusive subscription (only one consumer receives messages)
+danube-cli consume \
+  -s http://localhost:6650 \
+  -t /webhooks/alerts \
+  -m alert-exclusive \
+  --sub-type exclusive
+
+# You should see webhook payloads appearing in real-time:
+# Message received: {"event":"payment.succeeded","amount":5000,"currency":"usd"}
 ```
 
 ### Using a Sink Connector

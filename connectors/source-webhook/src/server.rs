@@ -63,7 +63,7 @@ pub async fn start_server_with_state(
         .route("/health", get(health_handler))
         .route("/ready", get(readiness_handler))
         // Webhook endpoint with auth and rate limiting middleware
-        .route("/*path", webhook_handler_with_middleware)
+        .route("/{*path}", webhook_handler_with_middleware)
         // Add global middleware
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,

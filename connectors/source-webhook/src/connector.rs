@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::config::{EndpointConfig, WebhookSourceConfig};
 
@@ -221,8 +221,7 @@ impl SourceConnector for WebhookConnector {
                     return Err(ConnectorError::fatal("Webhook channel closed"));
                 }
                 Err(_) => {
-                    // Timeout - no messages available
-                    debug!("Webhook poll timeout - no messages");
+                    // Timeout - no messages available, this is normal
                 }
             }
         }

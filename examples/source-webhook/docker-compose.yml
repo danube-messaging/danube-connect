@@ -125,7 +125,7 @@ services:
         echo "Waiting for webhook connector to be ready..."
         sleep 5
         echo "Starting to send test webhooks..."
-        
+
         count=0
         while true; do
           count=$$((count + 1))
