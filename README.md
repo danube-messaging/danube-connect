@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 
-[Documentation](./info/CONNECTORS_README.md) | [Development Guide](./info/connector-development-guide.md) | [Message Patterns](./info/connector-message-patterns.md)
+[Documentation](./info/README.md) | [Development Guide](./info/connector-development-guide.md) | [Message Patterns](./info/connector-message-patterns.md)
 
 </div>
 

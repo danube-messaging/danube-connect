@@ -8,30 +8,30 @@ license = "Apache-2.0"
 repository = "https://github.com/danube-messaging/danube-connect"
 
 [dependencies]
-# Core connector framework
+# Danube integration
 danube-connect-core = { path = "../../danube-connect-core" }
 
-# Qdrant client
+# Qdrant client (connector-specific)
 qdrant-client = "1.14.1"
 
-# Async runtime
+# Async Runtime
 tokio = { workspace = true }
 async-trait = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
-toml = "0.8"
+toml = { workspace = true }
 
 # Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # Utilities
-sha2 = "0.10"  # For point ID hashing
+sha2 = { workspace = true }
 
 [dev-dependencies]
-danube-core = { workspace = true }  # For tests
+danube-core = { workspace = true }
 
 [[bin]]
 name = "danube-sink-qdrant"

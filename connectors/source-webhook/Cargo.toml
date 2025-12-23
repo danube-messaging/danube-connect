@@ -1,0 +1,64 @@
+[package]
+name = "danube-source-webhook"
+version = "0.1.0"
+edition = "2021"
+authors = ["Danube Connect Contributors"]
+description = "HTTP/Webhook source connector for Danube messaging platform"
+license = "Apache-2.0"
+repository = "https://github.com/danrusei/danube-connect"
+
+[[bin]]
+name = "danube-source-webhook"
+path = "src/main.rs"
+
+[dependencies]
+# Danube integration
+danube-connect-core = { path = "../../danube-connect-core" }
+danube-client = { workspace = true }
+
+# Async Runtime
+async-trait = { workspace = true }
+tokio = { workspace = true }
+
+# HTTP framework
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+hyper = { workspace = true }
+
+# Authentication & Security
+hmac = { workspace = true }
+sha2 = { workspace = true }
+jsonwebtoken = { workspace = true }
+base64 = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+# Rate limiting
+tower_governor = { workspace = true }
+governor = { workspace = true }
+
+# Schema validation (optional feature, connector-specific)
+jsonschema = { version = "0.17", optional = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Error Handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Utilities
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+[features]
+default = ["schema-validation"]
+schema-validation = ["jsonschema"]
+
+[dev-dependencies]
+reqwest = { version = "0.11", features = ["json"] }

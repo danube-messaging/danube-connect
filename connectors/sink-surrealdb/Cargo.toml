@@ -11,10 +11,10 @@ keywords = ["danube", "surrealdb", "streaming", "connector", "database"]
 categories = ["database", "network-programming"]
 
 [dependencies]
-# Danube Connect Core
+# Danube integration
 danube-connect-core = { path = "../../danube-connect-core" }
 
-# SurrealDB Client (requires Rust 1.85+ for edition2024 support)
+# SurrealDB client (connector-specific)
 surrealdb = { version = "2.4", features = ["protocol-ws", "protocol-http"] }
 
 # Async Runtime
@@ -36,7 +36,7 @@ anyhow = { workspace = true }
 
 # Utilities
 chrono = { workspace = true }
-base64 = "0.22"
+base64 = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"

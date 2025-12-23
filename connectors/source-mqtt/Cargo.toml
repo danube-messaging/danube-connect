@@ -11,30 +11,28 @@ name = "danube-source-mqtt"
 path = "src/main.rs"
 
 [dependencies]
-# Core connector framework
+# Danube integration
 danube-connect-core = { path = "../../danube-connect-core" }
 
-# MQTT client - v0.25.1 includes enhanced MQTT v5 support
+# MQTT client (connector-specific)
 rumqttc = "0.25.1"
 
-# Async runtime
+# Async Runtime
 tokio = { workspace = true }
 async-trait = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
-
-# Error handling
-anyhow = { workspace = true }
-thiserror = { workspace = true }
+toml = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-# Configuration
-toml = "0.8"
+# Error Handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 mockall = "0.12"

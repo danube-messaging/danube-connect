@@ -11,27 +11,35 @@ description = "Core SDK for building Danube connectors"
 keywords = ["danube", "messaging", "connector", "integration"]
 
 [dependencies]
-# Workspace dependencies
-tokio = { workspace = true, features = ["full"] }
-async-trait.workspace = true
-serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
-tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-thiserror.workspace = true
-metrics.workspace = true
-rand.workspace = true
+# Async Runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
 
-# Additional dependencies
-toml = "0.8"
-base64 = "0.22"
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Utilities
+base64 = { workspace = true }
+rand = { workspace = true }
+
+# Metrics
+metrics = { workspace = true }
 
 # Danube dependencies
 danube-client = { workspace = true }
 danube-core = { workspace = true }
 
 [dev-dependencies]
-tempfile.workspace = true
+tempfile = { workspace = true }
 tokio-test = "0.4"
 
 [features]
