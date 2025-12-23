@@ -42,29 +42,19 @@ docker run -d \
 
 **Note:** All structural configuration (topics, tables, schemas, batching) must be in `connector.toml`. See [Configuration](#configuration) section below.
 
-### Local Testing with MinIO
+### Complete Example
 
-1. **Start MinIO:**
-```bash
-docker run -d -p 9000:9000 -p 9001:9001 \
-  -e "MINIO_ROOT_USER=minioadmin" \
-  -e "MINIO_ROOT_PASSWORD=minioadmin" \
-  quay.io/minio/minio server /data --console-address ":9001"
-```
+For a complete working setup with Docker Compose, MinIO, and test data:
 
-2. **Create bucket** at http://localhost:9001 (bucket name: `my-bucket`)
+👉 **See [examples/sink-deltalake](../../examples/sink-deltalake/README.md)**
 
-3. **Set credentials:**
-```bash
-export AWS_ACCESS_KEY_ID=minioadmin
-export AWS_SECRET_ACCESS_KEY=minioadmin
-export CONNECTOR_CONFIG_PATH=./connector.toml
-```
-
-4. **Run connector:**
-```bash
-cargo run --package danube-sink-deltalake
-```
+The example includes:
+- Docker Compose setup (Danube + ETCD + MinIO)
+- Pre-configured connector.toml
+- Delta Lake table schema definitions
+- Test producers using danube-cli
+- MinIO console access for data verification
+- Python query examples
 
 ## ⚙️ Configuration
 

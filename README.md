@@ -76,7 +76,7 @@ cargo new --bin sink-mydb
 |-----------|--------|-------------|---------------|
 | [Qdrant](./connectors/sink-qdrant/) | ✅ Available | Vector embeddings for RAG/AI | [README](./connectors/sink-qdrant/README.md) |
 | [SurrealDB](./connectors/sink-surrealdb/) | ✅ Available | Multi-model database (documents, time-series) | [README](./connectors/sink-surrealdb/README.md) |
-| Delta Lake | 🚧 Planned | Zero-JVM data lake ingestion (S3/Azure/GCS) | - |
+| [Delta Lake](./connectors/sink-deltalake/) | ✅ Available | ACID data lake ingestion (S3/Azure/GCS) | [README](./connectors/sink-deltalake/README.md) |
 | LanceDB | 🚧 Planned | Serverless vector DB for RAG pipelines | - |
 | ClickHouse | 🚧 Planned | Real-time analytics and feature stores | - |
 | GreptimeDB | 🚧 Planned | Unified observability (metrics/logs/traces) | - |
