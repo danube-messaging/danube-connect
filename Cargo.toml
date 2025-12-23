@@ -6,6 +6,7 @@ members = [
     "connectors/source-webhook",
     "connectors/sink-qdrant",
     "connectors/sink-surrealdb",
+    "connectors/sink-deltalake",
 ]
 
 [workspace.dependencies]
