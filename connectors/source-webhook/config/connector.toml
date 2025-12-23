@@ -82,12 +82,6 @@ reliable_dispatch = true
 # requests_per_second = 100
 # burst_size = 200
 
-# Optional: JSON Schema validation
-# [endpoints.validation]
-# enabled = true
-# schema_file = "./schemas/payment.json"
-# strict = false
-
 # Endpoint 2: Customer events (partitioned, non-reliable)
 [[endpoints]]
 path = "/webhooks/customers"

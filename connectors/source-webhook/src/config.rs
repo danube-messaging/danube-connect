@@ -137,23 +137,6 @@ pub struct EndpointConfig {
     pub reliable_dispatch: bool,
     /// Optional per-endpoint rate limiting (overrides platform-wide)
     pub rate_limit: Option<RateLimitConfig>,
-    /// Optional schema validation
-    pub validation: Option<ValidationConfig>,
-}
-
-/// Schema validation configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ValidationConfig {
-    /// Enable validation
-    #[serde(default)]
-    pub enabled: bool,
-    /// Path to JSON Schema file
-    pub schema_file: Option<String>,
-    /// Inline JSON Schema
-    pub schema: Option<serde_json::Value>,
-    /// Strict mode (reject unknown fields)
-    #[serde(default)]
-    pub strict: bool,
 }
 
 impl WebhookSourceConfig {

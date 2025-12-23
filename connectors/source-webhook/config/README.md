@@ -332,23 +332,6 @@ requests_per_second = 1000
 burst_size = 2000
 ```
 
-### Schema Validation (Optional)
-
-Validate webhook payloads against JSON Schema:
-
-```toml
-[[endpoints]]
-path = "/webhooks/payments"
-danube_topic = "/stripe/payments"
-
-[endpoints.validation]
-enabled = true
-schema_file = "./schemas/stripe_payment.json"
-strict = false
-```
-
-**Note:** Schema validation is planned but not yet implemented.
-
 ## Environment Variable Overrides
 
 Environment variables can override **only secrets and connection URLs**:
