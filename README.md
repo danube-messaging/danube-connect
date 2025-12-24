@@ -87,9 +87,8 @@ cargo new --bin sink-mydb
 |-----------|--------|-------------|---------------|
 | [MQTT](./connectors/source-mqtt/) | ✅ Available | IoT device integration (MQTT 3.1.1) | [README](./connectors/source-mqtt/README.md) |
 | [HTTP/Webhook](./connectors/source-webhook/) | ✅ Available | Universal webhook ingestion from SaaS platforms | [README](./connectors/source-webhook/README.md) |
+| OpenTelemetry | 🚧 Planned | Lightweight OTLP receiver (traces/metrics/logs) | - |
 | PostgreSQL CDC | 🚧 Planned | Change Data Capture from Postgres | - |
-
-**See [Connector Roadmap](./info/connector-roadmap.md) for detailed implementation plans and timelines.**
 
 
 ## Documentation

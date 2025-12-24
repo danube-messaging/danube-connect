@@ -1,191 +1,50 @@
 # Danube Connect: Connector Development Roadmap
 
 **Last Updated:** December 2025  
-**Status:** Planning Phase  
-**Timeline:** 6 months (Q1-Q2 2026)
+**Status:** Active Development  
+**Timeline:** 4 months (Q1-Q2 2026)
 
 ---
 
 ## 🎯 Strategic Vision
 
 Position Danube as **"The Rust-Native Data Platform for AI Pipelines"** by building connectors that enable:
-- **Data Lake Ingestion** - Stream events to Delta Lake without JVM overhead
 - **AI/RAG Pipelines** - Real-time vector embeddings for AI applications
 - **Real-Time Analytics** - Feature engineering and operational analytics
 - **Observability** - Complete Rust-based monitoring stack
+- **Lightweight Telemetry** - Alternative to heavyweight OTel Collector
+
+---
+
+## ✅ Completed Connectors
+
+### HTTP/Webhook Source Connector
+**Status:** ✅ Available  
+**Description:** Universal webhook ingestion from SaaS platforms  
+**Documentation:** [README](../connectors/source-webhook/README.md)
+
+### Delta Lake Sink Connector
+**Status:** ✅ Available  
+**Description:** ACID data lake ingestion (S3/Azure/GCS)  
+**Documentation:** [README](../connectors/sink-deltalake/README.md)
 
 ---
 
 ## 📋 Implementation Order
 
-### Phase 1: Foundation & Quick Wins (Months 1-2)
-1. [HTTP/Webhook Source Connector](#1-httpwebhook-source-connector)
-2. [Delta Lake Sink Connector](#2-delta-lake-sink-connector)
+### Phase 1: AI/Vector Ecosystem (Months 1-2)
+1. [LanceDB Sink Connector](#1-lancedb-sink-connector)
 
-### Phase 2: AI/Vector Ecosystem (Months 3-4)
-3. [LanceDB Sink Connector](#3-lancedb-sink-connector)
+### Phase 2: Observability Foundation (Month 3)
+2. [OpenTelemetry Source Connector](#2-opentelemetry-source-connector)
 
-### Phase 3: Analytics & Observability (Months 5-6)
-4. [ClickHouse Sink Connector](#4-clickhouse-sink-connector)
-5. [GreptimeDB Sink Connector](#5-greptimedb-sink-connector)
-
----
-
-## 1. HTTP/Webhook Source Connector
-
-**Priority:** Critical  
-**Timeline:** 2-3 weeks  
-**Complexity:** Low  
-**Status:** 🚧 Planned
-
-### Overview
-
-A high-performance HTTP server that receives webhook events from external services and publishes them to Danube topics. Built with `axum` for maximum throughput and minimal latency.
-
-### Why Build This First?
-
-#### Technical Reasons
-- ✅ **Unblocks Everything** - You need data flowing into Danube before sink connectors matter
-- ✅ **Lowest Complexity** - HTTP server is straightforward, no external dependencies
-- ✅ **Quick Win** - Can be production-ready in 2-3 weeks
-- ✅ **Testing Enabler** - Provides easy way to generate test data for other connectors
-
-#### Market Reasons
-- 🎯 **Universal Integration** - Every SaaS platform has webhooks (Stripe, GitHub, Shopify, Clerk, etc.)
-- 🎯 **AI Agent Trend** - 2025 is the year of AI agents communicating via webhooks (LangChain, Goose, AutoGPT)
-- 🎯 **Zero Configuration** - Users can integrate any service without writing code
-- 🎯 **Immediate Value** - "Connect any SaaS to Danube in 5 minutes"
-
-### Use Cases
-
-**SaaS Event Ingestion:**
-```
-Stripe Webhooks → Danube → Delta Lake
-(Payment events → Data warehouse for analytics)
-```
-
-**AI Agent Communication:**
-```
-LangChain Agent → Webhook → Danube → LanceDB
-(Agent actions → Vector storage for context)
-```
-
-**Multi-Source Aggregation:**
-```
-GitHub + Jira + Slack → Danube → ClickHouse
-(Development events → Real-time dashboards)
-```
-
-### Key Features
-
-- **Authentication** - API keys, HMAC signatures, JWT tokens
-- **Rate Limiting** - Per-endpoint throttling to prevent abuse
-- **Schema Validation** - JSON Schema validation before publishing
-- **Retry Handling** - Automatic retry with exponential backoff
-- **Multi-Endpoint** - Multiple webhook endpoints with different configurations
-- **Metadata Enrichment** - Add source, timestamp, IP address as message attributes
-
-### Technical Stack
-
-- **HTTP Framework:** `axum` (Tokio-based, high performance)
-- **Validation:** `jsonschema` for schema validation
-- **Authentication:** `tower-http` middleware for auth
-- **Rate Limiting:** `tower-governor` for rate limiting
-
-### Marketing Benefits
-
-- 📣 **"Universal Data Ingestion"** - Connect to any service with webhooks
-- 📣 **"AI-Ready"** - Perfect for AI agent ecosystems
-- 📣 **"Zero Code Integration"** - No SDK required, just configure and go
-- 📣 **"Production-Grade"** - Built-in auth, rate limiting, and validation
-
-### Success Metrics
-
-- Support 10,000+ webhooks/second on a single instance
-- Sub-10ms latency from webhook receipt to Danube publish
-- 99.99% uptime with automatic failover
+### Phase 3: Analytics & Observability (Months 4)
+3. [ClickHouse Sink Connector](#3-clickhouse-sink-connector)
+4. [GreptimeDB Sink Connector](#4-greptimedb-sink-connector)
 
 ---
 
-## 2. Delta Lake Sink Connector
-
-**Priority:** Critical  
-**Timeline:** 4-6 weeks  
-**Complexity:** Medium  
-**Status:** 🚧 Planned
-
-### Overview
-
-A Rust-native connector that streams events from Danube topics directly to Delta Lake tables on S3/Azure/GCS. Uses `delta-rs` for ACID transactions and Parquet file generation without JVM overhead.
-
-### Why Build This Second?
-
-#### Technical Reasons
-- ✅ **Completes the Pipeline** - HTTP Source → Danube → Delta Lake = end-to-end data lake ingestion
-- ✅ **Proven Technology** - `delta-rs` is production-ready and well-documented
-- ✅ **Builds on Experience** - Similar patterns to existing sink connectors (Qdrant, SurrealDB)
-
-#### Market Reasons
-- 🎯 **Enterprise Door Opener** - Delta Lake is the standard for modern data platforms
-- 🎯 **Zero-JVM Differentiation** - Kafka Connect's Delta sinks are notorious for memory leaks and GC pauses
-- 🎯 **Cost Savings** - 10x less memory usage = 10x cheaper infrastructure
-- 🎯 **ML Training Pipeline** - Every ML team needs to store training data in a data lake
-
-### Use Cases
-
-**ML Training Data Pipeline:**
-```
-Application Events → Danube → Delta Lake → Databricks
-(User behavior → Training data → Model training)
-```
-
-**Data Warehouse Replacement:**
-```
-Multiple Sources → Danube → Delta Lake → Athena/Presto
-(Operational data → Open data lake → SQL analytics)
-```
-
-**Real-Time Data Lake:**
-```
-IoT Sensors → MQTT → Danube → Delta Lake
-(Sensor readings → Queryable data lake in seconds)
-```
-
-### Key Features
-
-- **ACID Transactions** - Guaranteed consistency with Delta Lake transaction log
-- **Schema Evolution** - Automatic schema merging and evolution
-- **Partitioning** - Time-based and custom partitioning strategies
-- **Compaction** - Automatic small file compaction for query performance
-- **Multi-Table Routing** - Route different topics to different Delta tables
-- **Metadata Columns** - Optional Danube metadata (topic, offset, timestamp)
-- **S3/Azure/GCS Support** - Works with any object storage backend
-
-### Technical Stack
-
-- **Delta Lake:** `deltalake` (delta-rs) - Rust bindings for Delta Lake
-- **Parquet:** `parquet` - Columnar file format
-- **Object Storage:** `object_store` - Unified interface for S3/Azure/GCS
-- **Arrow:** `arrow` - Zero-copy data structures
-
-### Marketing Benefits
-
-- 📣 **"Zero-JVM Data Lake"** - No Spark, no Kafka Connect, no JVM
-- 📣 **"10x Performance"** - Rust-native ingestion beats Java-based solutions
-- 📣 **"10x Cost Savings"** - 50MB RAM vs 4GB JVM heap
-- 📣 **"Enterprise-Grade"** - ACID transactions, schema evolution, partitioning
-- 📣 **"Open Standards"** - Delta Lake is open-source, vendor-neutral
-
-### Success Metrics
-
-- Ingest 1GB/sec on a single instance
-- Write Parquet files with <100ms latency
-- Support 100+ concurrent Delta tables
-- Zero data loss with ACID guarantees
-
----
-
-## 3. LanceDB Sink Connector
+## 1. LanceDB Sink Connector
 
 **Priority:** High  
 **Timeline:** 3-4 weeks  
@@ -196,12 +55,13 @@ IoT Sensors → MQTT → Danube → Delta Lake
 
 A connector that streams vector embeddings from Danube topics to LanceDB, a serverless vector database that stores data in Lance format on S3. Enables RAG (Retrieval-Augmented Generation) pipelines without managing vector database infrastructure.
 
-### Why Build This Third?
+### Why Build This First?
 
 #### Technical Reasons
 - ✅ **Leverages Qdrant Experience** - Similar patterns to existing Qdrant sink
 - ✅ **Rust-Native** - `lancedb` crate is first-class Rust support
 - ✅ **Complements Qdrant** - LanceDB = disk-based, Qdrant = memory-based
+- ✅ **Proven Patterns** - Builds on established sink connector architecture
 
 #### Market Reasons
 - 🎯 **RAG Pipeline Trend** - Every AI application needs vector search in 2025
@@ -261,7 +121,138 @@ User Behavior → Feature Extraction → Danube → LanceDB
 
 ---
 
-## 4. ClickHouse Sink Connector
+## 2. OpenTelemetry Source Connector
+
+**Priority:** High  
+**Timeline:** 3-4 weeks  
+**Complexity:** Medium  
+**Status:** 🚧 Planned
+
+### Overview
+
+A lightweight OpenTelemetry receiver that ingests traces, metrics, and logs via OTLP (OpenTelemetry Protocol) and publishes them to Danube topics. Provides a Rust-native alternative to the heavyweight OTel Collector for teams that need simple telemetry ingestion without complex processing pipelines.
+
+### Why Build This Second?
+
+#### Technical Reasons
+- ✅ **Builds on gRPC/HTTP Experience** - Leverages patterns from Webhook connector
+- ✅ **Rust-Native Stack** - `tonic` and `prost` are mature and performant
+- ✅ **Complements Observability Sinks** - Enables end-to-end observability pipeline
+- ✅ **Proven Protocol** - OTLP is standardized and well-documented
+
+#### Market Reasons
+- 🎯 **OTel Collector Alternative** - 10x less memory (50MB vs 200-500MB)
+- 🎯 **Simpler Deployment** - One binary instead of collector + exporters
+- 🎯 **100% Rust Stack** - OTel → Danube → GreptimeDB (all Rust!)
+- 🎯 **Flexible Routing** - Route telemetry to multiple backends via Danube topics
+- 🎯 **Edge-Friendly** - Lightweight enough for edge deployments
+
+### Use Cases
+
+**Microservices Observability:**
+```
+Kubernetes Services (OTel SDK) → Danube OTel Source → Danube → GreptimeDB
+(Traces/metrics/logs → Unified observability)
+```
+
+**Edge Telemetry:**
+```
+IoT Devices (OTel) → Danube OTel Source → Danube → ClickHouse
+(Edge telemetry → Real-time analytics)
+```
+
+**Multi-Backend Routing:**
+```
+Applications → Danube OTel Source → Danube → {
+  - GreptimeDB (long-term storage)
+  - ClickHouse (real-time analytics)
+  - Delta Lake (compliance/audit)
+}
+```
+
+**Hybrid Cloud:**
+```
+On-Prem Services → Danube OTel Source → Danube → Cloud Backends
+(Private telemetry → Secure transport → Cloud storage)
+```
+
+### Key Features
+
+- **OTLP/gRPC** - Native OpenTelemetry protocol support
+- **OTLP/HTTP** - HTTP/JSON alternative for firewall-friendly deployments
+- **Multi-Signal** - Traces, metrics, and logs in one connector
+- **Batching** - Configurable batch sizes for optimal throughput
+- **Sampling** - Probabilistic sampling to reduce data volume
+- **Metadata Enrichment** - Add service name, environment, cluster tags
+- **Topic Routing** - Route different signal types to different topics
+- **Compression** - gRPC compression for network efficiency
+
+### Technical Stack
+
+- **Protocol:** `opentelemetry-proto` - OTel protobuf definitions
+- **gRPC Server:** `tonic` - High-performance gRPC framework
+- **HTTP Server:** `axum` - For OTLP/HTTP endpoint
+- **Serialization:** `prost` - Protobuf serialization
+- **Compression:** `flate2` - gzip compression
+
+### Configuration Example
+
+```toml
+[opentelemetry]
+# gRPC endpoint for OTLP/gRPC
+grpc_endpoint = "0.0.0.0:4317"
+
+# HTTP endpoint for OTLP/HTTP
+http_endpoint = "0.0.0.0:4318"
+
+# Topic routing by signal type
+traces_topic = "/observability/traces"
+metrics_topic = "/observability/metrics"
+logs_topic = "/observability/logs"
+
+# Batching configuration
+batch_size = 100
+flush_interval_ms = 1000
+
+# Sampling (optional)
+sampling_rate = 1.0  # 1.0 = 100% (no sampling)
+
+# Metadata enrichment
+[opentelemetry.metadata]
+environment = "production"
+cluster = "us-west-2"
+```
+
+### Marketing Benefits
+
+- 📣 **"Lightweight OTel Receiver"** - 10x less memory than OTel Collector
+- 📣 **"Native Rust Performance"** - Sub-millisecond trace ingestion
+- 📣 **"Flexible Routing"** - Route to multiple backends without exporters
+- 📣 **"Edge-Ready"** - Lightweight enough for IoT and edge deployments
+- 📣 **"100% Rust Stack"** - Complete observability pipeline in Rust
+
+### Success Metrics
+
+- Ingest 100,000+ spans/second
+- Support 10,000+ metrics/second
+- Sub-10ms latency from OTLP to Danube publish
+- <50MB memory footprint
+- 99.99% uptime
+
+### Comparison to OTel Collector
+
+| Feature | Danube OTel Source | OTel Collector |
+|---------|-------------------|----------------|
+| Memory Usage | ~50MB | 200-500MB |
+| Startup Time | <1s | 10-30s |
+| Language | Rust | Go |
+| Routing | Danube topics | Exporters config |
+| Processing | Minimal (batching) | Complex pipelines |
+| Use Case | Simple ingestion | Complex transformations |
+
+---
+
+## 3. ClickHouse Sink Connector
 
 **Priority:** High  
 **Timeline:** 3-4 weeks  
@@ -272,18 +263,19 @@ User Behavior → Feature Extraction → Danube → LanceDB
 
 A high-performance connector that streams events from Danube to ClickHouse, the fastest open-source OLAP database. Optimized for real-time analytics, feature stores, and operational dashboards.
 
-### Why Build This Fourth?
+### Why Build This Third?
 
 #### Technical Reasons
 - ✅ **Similar to SurrealDB** - Follows established sink connector patterns
 - ✅ **Mature Client** - `clickhouse-rs` is production-ready
 - ✅ **Async Inserts** - Leverage Rust's concurrency for ClickHouse's async_insert feature
+- ✅ **Complements OTel Source** - Perfect backend for telemetry data
 
 #### Market Reasons
 - 🎯 **High Demand** - ClickHouse is exploding in popularity for real-time analytics
 - 🎯 **Feature Store Use Case** - ML teams use ClickHouse for online feature serving
 - 🎯 **Real-Time Dashboards** - Sub-second query latency for operational analytics
-- 🎯 **Competitive Market** - But Rust performance is your edge
+- 🎯 **Observability Backend** - Excellent for storing traces/metrics from OTel
 
 ### Use Cases
 
@@ -337,7 +329,7 @@ IoT Sensors → MQTT → Danube → ClickHouse
 
 ---
 
-## 5. GreptimeDB Sink Connector
+## 4. GreptimeDB Sink Connector
 
 **Priority:** Medium  
 **Timeline:** 3-4 weeks  
@@ -348,18 +340,20 @@ IoT Sensors → MQTT → Danube → ClickHouse
 
 A connector that streams time-series data from Danube to GreptimeDB, a unified observability database for metrics, logs, and traces. Written in Rust, GreptimeDB completes the "100% Rust observability stack."
 
-### Why Build This Fifth?
+### Why Build This Fourth?
 
 #### Technical Reasons
 - ✅ **Rust-to-Rust** - Both Danube and GreptimeDB are Rust-native
 - ✅ **Similar to ClickHouse** - Time-series ingestion patterns
 - ✅ **Emerging Technology** - Early mover advantage
+- ✅ **Perfect OTel Backend** - Native support for OpenTelemetry data model
 
 #### Market Reasons
-- 🎯 **100% Rust Stack** - MQTT → Danube → GreptimeDB (all Rust!)
+- 🎯 **100% Rust Stack** - OTel → Danube → GreptimeDB (all Rust!)
 - 🎯 **Unified Observability** - Metrics + Logs + Traces in one database
 - 🎯 **IoT Positioning** - Perfect complement to MQTT source connector
 - 🎯 **Less Competition** - Not as crowded as ClickHouse/Prometheus
+- 🎯 **OTel Native** - First-class OpenTelemetry support
 
 ### Use Cases
 
@@ -415,22 +409,7 @@ OpenTelemetry → Danube → GreptimeDB
 
 ## 🚀 Marketing Milestones
 
-### After Connector #2 (Delta Lake) - Month 2
-**Positioning:** "The Zero-JVM Data Lake Pipeline"
-
-**Key Messages:**
-- 10x faster than Kafka Connect
-- 10x less memory (50MB vs 4GB)
-- 100% Rust, zero JVM overhead
-- ACID transactions without Spark
-
-**Target Audience:** Data engineers, ML engineers, platform teams
-
-**Demo:** Webhook → Danube → Delta Lake → Athena queries
-
----
-
-### After Connector #3 (LanceDB) - Month 4
+### After Connector #1 (LanceDB) - Month 2
 **Positioning:** "The AI Context Transport Layer"
 
 **Key Messages:**
@@ -438,25 +417,43 @@ OpenTelemetry → Danube → GreptimeDB
 - Build RAG pipelines without infrastructure
 - Rust-native performance for AI workloads
 - Serverless vector storage
+- Complete AI pipeline: Webhook → Danube → LanceDB
 
 **Target Audience:** AI/ML teams, LLM application developers
 
-**Demo:** Document ingestion → Embeddings → LanceDB → RAG queries
+**Demo:** Document ingestion → Embeddings → Danube → LanceDB → RAG queries
 
 ---
 
-### After Connector #5 (GreptimeDB) - Month 6
-**Positioning:** "The Complete Rust Data Platform"
+### After Connector #2 (OpenTelemetry) - Month 3
+**Positioning:** "The Lightweight Observability Pipeline"
+
+**Key Messages:**
+- Replace OTel Collector with 10x less memory
+- Native Rust performance for telemetry
+- Unified platform for logs, metrics, traces
+- Flexible multi-backend routing
+- 100% Rust stack: OTel → Danube → GreptimeDB
+
+**Target Audience:** DevOps teams, SRE, platform engineers
+
+**Demo:** Microservices (OTel SDK) → Danube OTel Source → Danube → GreptimeDB → Grafana
+
+---
+
+### After Connector #4 (GreptimeDB) - Month 4
+**Positioning:** "The Complete Rust Observability Stack"
 
 **Key Messages:**
 - 100% Rust observability stack
-- IoT to AI in one platform
+- IoT to cloud in one platform
 - Unified metrics, logs, and traces
 - Edge to cloud data pipeline
+- Alternative to heavyweight OTel Collector + Prometheus
 
 **Target Audience:** IoT companies, DevOps teams, platform engineers
 
-**Demo:** MQTT sensors → Danube → GreptimeDB → Grafana dashboards
+**Demo:** OTel → Danube → GreptimeDB → Grafana dashboards
 
 ---
 
@@ -507,15 +504,15 @@ OpenTelemetry → Danube → GreptimeDB
 ## 📚 Resources
 
 ### Rust Crates
-- **HTTP/Webhook:** `axum`, `tower-http`, `jsonschema`
-- **Delta Lake:** `deltalake`, `parquet`, `arrow`, `object_store`
 - **LanceDB:** `lancedb`, `arrow`
+- **OpenTelemetry:** `opentelemetry-proto`, `tonic`, `prost`, `axum`
 - **ClickHouse:** `clickhouse`, `lz4`, `zstd`
 - **GreptimeDB:** `greptimedb`, `tonic` (gRPC)
 
 ### Documentation
-- [Delta Lake Rust Docs](https://docs.rs/deltalake/)
 - [LanceDB Rust Docs](https://lancedb.github.io/lancedb/)
+- [OpenTelemetry Protocol](https://opentelemetry.io/docs/specs/otlp/)
+- [OpenTelemetry Rust](https://github.com/open-telemetry/opentelemetry-rust)
 - [ClickHouse Rust Client](https://github.com/loyd/clickhouse.rs)
 - [GreptimeDB Docs](https://docs.greptime.com/)
 
@@ -535,4 +532,4 @@ Want to help build these connectors? See [CONTRIBUTING.md](../CONTRIBUTING.md) f
 
 ---
 
-**Next Steps:** Begin implementation of HTTP/Webhook Source Connector (Target: January 2026)
+**Next Steps:** Begin implementation of LanceDB Sink Connector (Target: Q1 2026)

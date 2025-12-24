@@ -29,7 +29,6 @@ Your terminal
 - **`connector.toml`** - MQTT connector configuration with topic mappings and settings
 - **`danube_broker.yml`** - Danube broker configuration
 - **`mosquitto.conf`** - MQTT broker configuration (listeners, logging)
-- **`.env.example`** - Template for environment variable overrides
 - **`test-publisher.sh`** - Automated test script to publish sample MQTT messages
 - **`README.md`** - This file (integration testing guide)
 
@@ -63,6 +62,9 @@ docker logs -f mqtt-example-connector
 
 # Watch test publisher
 docker logs -f mqtt-example-publisher
+
+# Watch Danube broker
+docker logs -f danube-broker
 
 # Watch MQTT broker
 docker logs -f mqtt-example-broker
