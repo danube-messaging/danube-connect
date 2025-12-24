@@ -170,7 +170,8 @@ mod tests {
 
         let result = to_surrealdb_record(&record, &mapping).unwrap();
         assert_eq!(result.id, None);
-        assert_eq!(result.data["data"], "Hello, SurrealDB!");
+        // String schema type now returns Value::String directly (not wrapped)
+        assert_eq!(result.data, "Hello, SurrealDB!");
     }
 
     #[test]
@@ -191,8 +192,8 @@ mod tests {
 
         let result = to_surrealdb_record(&record, &mapping).unwrap();
         assert_eq!(result.id, None);
-        // Int64 deserialized to actual number
-        assert_eq!(result.data["value"], 42);
+        // Int64 schema type now returns Value::Number directly (not wrapped)
+        assert_eq!(result.data, 42);
     }
 
     #[test]

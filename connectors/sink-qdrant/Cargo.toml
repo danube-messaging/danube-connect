@@ -1,6 +1,6 @@
 [package]
 name = "danube-sink-qdrant"
-version = "0.1.2"
+version = "0.1.4"
 edition = "2021"
 authors = ["Dan Rusei <dan.rusei@gmail.com>"]
 description = "Qdrant sink connector for Danube Connect - streaming vector embeddings to Qdrant"

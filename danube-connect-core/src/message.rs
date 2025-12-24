@@ -81,32 +81,41 @@ impl SinkRecord {
     ///
     /// # Schema Type Handling
     ///
-    /// - **Json**: Deserializes to `serde_json::Value`
-    /// - **String**: Deserializes to UTF-8 string, wrapped in `{data: "..."}`
-    /// - **Int64**: Deserializes big-endian 8 bytes to i64, wrapped in `{value: N}`
+    /// - **Json**: Deserializes to `serde_json::Value` (object, array, etc.)
+    /// - **String**: Deserializes to UTF-8 string as `Value::String`
+    /// - **Int64**: Deserializes big-endian 8 bytes to i64 as `Value::Number`
     /// - **Bytes**: Encodes as base64, wrapped in `{data: "base64...", size: N}`
+    ///
+    /// # Design Rationale
+    ///
+    /// String and Int64 are returned as primitive JSON values (not wrapped in objects)
+    /// to preserve the original data type sent by the producer. If Danube sends a string
+    /// or number, connectors should receive it as-is without artificial wrapping.
+    ///
+    /// Bytes is wrapped because binary data needs metadata (size) and base64 encoding
+    /// for JSON-based systems.
     ///
     /// # Example
     ///
     /// ```ignore
     /// // In any sink connector
     /// let data = record.payload_deserialized(mapping.schema_type)?;
-    /// // data is now a serde_json::Value ready to insert
+    /// 
+    /// // For Json: data is the original JSON structure
+    /// // For String: data is Value::String("hello")
+    /// // For Int64: data is Value::Number(42)
+    /// // For Bytes: data is {"data": "AQIDBA==", "size": 4}
     /// ```
     pub fn payload_deserialized(&self, schema_type: SchemaType) -> ConnectorResult<Value> {
         match schema_type {
             SchemaType::Json => self.payload_json(),
             SchemaType::String => {
                 let string_value = self.payload_str()?.to_string();
-                Ok(json!({
-                    "data": string_value
-                }))
+                Ok(json!(string_value))
             }
             SchemaType::Int64 => {
                 let value = self.payload_int64()?;
-                Ok(json!({
-                    "value": value
-                }))
+                Ok(json!(value))
             }
             SchemaType::Bytes => {
                 let base64_data = self.payload_base64();
