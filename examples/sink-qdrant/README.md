@@ -170,24 +170,7 @@ chmod +x search_vectors.py
 
 ## Configuration
 
-### Using Environment Variables (Single Topic)
-
-Edit `docker-compose.yml` to change settings for single-topic configuration:
-
-```yaml
-environment:
-  # Qdrant Settings (Single Topic - Backward Compatible)
-  - QDRANT_TOPIC=/default/vectors
-  - QDRANT_SUBSCRIPTION=qdrant-sink-sub
-  - QDRANT_COLLECTION=my_collection
-  - QDRANT_VECTOR_DIMENSION=1536  # For OpenAI
-  - QDRANT_BATCH_SIZE=100
-  - QDRANT_DISTANCE=Cosine
-```
-
-### Using Configuration File (Recommended)
-
-For more control, especially **multi-topic configurations**, use TOML files:
+### Using Configuration File 
 
 **Single Topic:** `connector.toml`
 ```toml
@@ -272,25 +255,17 @@ docker-compose logs -f
 # Just connector
 docker-compose logs -f qdrant-sink
 
+# Danube logs
+docker-compose logs -f danube-broker
+
 # Qdrant logs
 docker-compose logs -f qdrant
 ```
 
-## Verifying the Connector
-
 ### Check Data Flow
 
 ```bash
-# 1. Verify messages are in Danube
-docker-compose logs danube-broker | grep produce
-
-# 2. Verify connector is processing
-docker-compose logs qdrant-sink | grep "Flushing batch"
-
-# 3. Check Qdrant has received points
-curl http://localhost:6333/collections/vectors | jq '.result.points_count'
-
-# 4. View collection info
+# View collection info
 ./search_vectors.py --info
 ```
 
