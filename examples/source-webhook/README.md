@@ -63,6 +63,9 @@ docker-compose ps
 # Check webhook connector logs
 docker-compose logs -f webhook-connector
 
+# Check Danube broker logs
+docker-compose logs -f danube-broker
+
 # Check test publisher logs
 docker-compose logs -f webhook-test-publisher
 ```
@@ -471,39 +474,6 @@ Remove volumes (data will be lost):
 ```bash
 docker-compose down -v
 ```
-
-## Production Considerations
-
-### Security
-
-1. **Use HTTPS** - Add TLS certificates in production
-2. **Strong API Keys** - Use cryptographically secure random keys
-3. **HMAC Signatures** - For Stripe/GitHub webhooks, use HMAC validation
-4. **JWT Tokens** - For service-to-service authentication
-5. **IP Whitelisting** - Restrict webhook sources by IP
-
-### Reliability
-
-1. **Reliable Dispatch** - Enable for critical webhooks (payments, orders)
-2. **Partitioning** - Use partitions for high-throughput endpoints
-3. **Rate Limiting** - Protect against abuse and DDoS
-4. **Health Checks** - Monitor `/health` endpoint
-5. **Metrics** - Export to Prometheus for monitoring
-
-### Scalability
-
-1. **Horizontal Scaling** - Run multiple connector instances behind a load balancer
-2. **Partition Count** - Increase partitions for high-volume topics
-3. **Buffer Size** - Adjust channel buffer size for burst traffic
-4. **Timeout Settings** - Tune based on expected payload sizes
-
-## Next Steps
-
-- Add more webhook endpoints in `connector.toml`
-- Configure HMAC authentication for Stripe webhooks
-- Set up a sink connector to process webhook data
-- Implement JSON Schema validation for payloads
-- Add monitoring and alerting
 
 ## Resources
 
