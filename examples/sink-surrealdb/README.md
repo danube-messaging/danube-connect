@@ -48,6 +48,9 @@ docker-compose up -d
 # Check logs
 docker-compose logs -f surrealdb-sink
 
+# Check danube broker
+docker-compose logs -f danube-broker
+
 # Verify all services are healthy
 docker-compose ps
 ```
