@@ -66,7 +66,7 @@ pub mod utils;
 // Re-export public API
 pub use config::{ConnectorConfig, ProcessingSettings, RetrySettings, SubscriptionType};
 pub use error::{ConnectorError, ConnectorResult};
-pub use message::{SinkRecord, SourceRecord};
+pub use message::{DanubeMetadata, SinkRecord, SourceRecord};
 pub use metrics::ConnectorMetrics;
 pub use retry::{RetryConfig, RetryStrategy};
 pub use runtime::{ConsumerConfig, ProducerConfig, SinkRuntime, SourceRuntime};

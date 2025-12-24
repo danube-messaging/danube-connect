@@ -119,7 +119,7 @@ fn build_payload(
         );
         payload.insert(
             "_danube_producer".to_string(),
-            Value::from(record.message.producer_name.clone()),
+            Value::from(record.producer_name().to_string()),
         );
 
         // Add custom attributes if present

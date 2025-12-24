@@ -11,34 +11,66 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 /// Record passed to sink connectors (from Danube → External System)
+///
+/// This structure separates user data (payload, attributes) from Danube system metadata,
+/// making it more efficient and easier to use in sink connectors.
 #[derive(Debug, Clone)]
 pub struct SinkRecord {
-    /// The Danube StreamMessage
-    pub message: StreamMessage,
-    /// The topic partition this message came from (if partitioned)
+    /// The actual message payload (raw bytes)
+    pub payload: Vec<u8>,
+    /// User-defined attributes/properties from producer
+    pub attributes: HashMap<String, String>,
+    /// Danube metadata for observability and debugging
+    pub danube_metadata: DanubeMetadata,
+    /// Topic partition (if topic is partitioned)
     pub partition: Option<String>,
-    /// Additional connector-specific metadata
-    pub metadata: HashMap<String, String>,
+}
+
+/// Danube-specific metadata for observability and debugging
+#[derive(Debug, Clone)]
+pub struct DanubeMetadata {
+    /// Topic name
+    pub topic: String,
+    /// Message offset within topic
+    pub offset: u64,
+    /// Publish timestamp (microseconds since epoch)
+    pub publish_time: u64,
+    /// Formatted message ID for logging/debugging
+    pub message_id: String,
+    /// Producer name (for debugging)
+    pub producer_name: String,
 }
 
 impl SinkRecord {
     /// Convert Danube StreamMessage to SinkRecord
     pub fn from_stream_message(message: StreamMessage, partition: Option<String>) -> Self {
+        let message_id = format!(
+            "topic:{}/producer:{}/offset:{}",
+            message.msg_id.topic_name, message.msg_id.producer_id, message.msg_id.topic_offset
+        );
+
         Self {
-            message,
+            payload: message.payload,
+            attributes: message.attributes,
+            danube_metadata: DanubeMetadata {
+                topic: message.msg_id.topic_name,
+                offset: message.msg_id.topic_offset,
+                publish_time: message.publish_time,
+                message_id,
+                producer_name: message.producer_name,
+            },
             partition,
-            metadata: HashMap::new(),
         }
     }
 
     /// Get the payload as bytes
     pub fn payload(&self) -> &[u8] {
-        &self.message.payload
+        &self.payload
     }
 
     /// Get the payload size in bytes
     pub fn payload_size(&self) -> usize {
-        self.message.payload.len()
+        self.payload.len()
     }
 
     /// Deserialize the payload according to schema type
@@ -88,17 +120,17 @@ impl SinkRecord {
 
     /// Get the payload as a UTF-8 string (if valid)
     pub fn payload_str(&self) -> ConnectorResult<&str> {
-        std::str::from_utf8(&self.message.payload).map_err(|e| ConnectorError::InvalidData {
+        std::str::from_utf8(&self.payload).map_err(|e| ConnectorError::InvalidData {
             message: format!("Payload is not valid UTF-8: {}", e),
-            payload: self.message.payload.clone(),
+            payload: self.payload.clone(),
         })
     }
 
     /// Deserialize the payload as JSON
     pub fn payload_json<T: DeserializeOwned>(&self) -> ConnectorResult<T> {
-        serde_json::from_slice(&self.message.payload).map_err(|e| ConnectorError::InvalidData {
+        serde_json::from_slice(&self.payload).map_err(|e| ConnectorError::InvalidData {
             message: format!("Failed to deserialize JSON: {}", e),
-            payload: self.message.payload.clone(),
+            payload: self.payload.clone(),
         })
     }
 
@@ -127,64 +159,44 @@ impl SinkRecord {
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, self.payload())
     }
 
-    /// Access message attributes
+    /// Access message attributes (user-defined properties)
     pub fn attributes(&self) -> &HashMap<String, String> {
-        &self.message.attributes
+        &self.attributes
     }
 
     /// Get a specific attribute value
     pub fn get_attribute(&self, key: &str) -> Option<&str> {
-        self.message.attributes.get(key).map(|s| s.as_str())
+        self.attributes.get(key).map(|s| s.as_str())
     }
 
     /// Check if an attribute exists
     pub fn has_attribute(&self, key: &str) -> bool {
-        self.message.attributes.contains_key(key)
+        self.attributes.contains_key(key)
     }
 
     /// Get the topic name
     pub fn topic(&self) -> &str {
-        &self.message.msg_id.topic_name
+        &self.danube_metadata.topic
     }
 
     /// Get the topic offset
     pub fn offset(&self) -> u64 {
-        self.message.msg_id.topic_offset
+        self.danube_metadata.offset
     }
 
     /// Get the publish timestamp (microseconds since epoch)
     pub fn publish_time(&self) -> u64 {
-        self.message.publish_time
+        self.danube_metadata.publish_time
     }
 
     /// Get the producer name
     pub fn producer_name(&self) -> &str {
-        &self.message.producer_name
-    }
-
-    /// Get the subscription name (if available)
-    pub fn subscription_name(&self) -> Option<&str> {
-        self.message.subscription_name.as_deref()
-    }
-
-    /// Get the broker address
-    pub fn broker_addr(&self) -> &str {
-        &self.message.msg_id.broker_addr
+        &self.danube_metadata.producer_name
     }
 
     /// Get a formatted message ID string for logging
-    pub fn message_id(&self) -> String {
-        format!(
-            "topic:{}/producer:{}/offset:{}",
-            self.message.msg_id.topic_name,
-            self.message.msg_id.producer_id,
-            self.message.msg_id.topic_offset
-        )
-    }
-
-    /// Add connector-specific metadata
-    pub fn add_metadata(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.metadata.insert(key.into(), value.into());
+    pub fn message_id(&self) -> &str {
+        &self.danube_metadata.message_id
     }
 }
 
